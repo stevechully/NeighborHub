@@ -1,0 +1,15 @@
+:root {
+    --bg: #f5f7fb;
+    --card: #ffffff;
+    --primary: #2563eb;
+    --text: #1f2937;
+    --border: #e5e7eb;
+  }
+  
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, sans-serif;
+  }
+  
