@@ -22,9 +22,23 @@ export function AuthProvider({ children }) {
     return data;
   }
 
+  // Unified Logout System
+  const logout = async () => {
+    try {
+      // 1. Terminate the Supabase session
+      await supabase.auth.signOut();
+    } catch (err) {
+      console.error("Logout failed:", err.message);
+    } finally {
+      // 2. Explicitly clear local state
+      // We do this in 'finally' to ensure the UI updates even if the network call fails
+      setUser(null);
+      setProfile(null);
+    }
+  };
+
   useEffect(() => {
     let mounted = true;
-
 
     async function initializeAuth() {
       try {
@@ -44,7 +58,6 @@ export function AuthProvider({ children }) {
 
           if (sessionUser) {
             console.log("AuthContext: Fetching profile (non-blocking)...");
-            // 💡 Don't await profile load here to avoid blocking the UI
             loadProfile(sessionUser.id).then(p => {
               if (mounted) {
                 console.log("AuthContext: Profile loaded successfully");
@@ -84,6 +97,7 @@ export function AuthProvider({ children }) {
           setProfile(null);
         }
 
+        setProfile(null); // Clear profile on logout event
         setLoading(false);
       }
     );
@@ -95,7 +109,8 @@ export function AuthProvider({ children }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading }}>
+    // Added 'logout' to the Provider value so it is accessible via useAuth()
+    <AuthContext.Provider value={{ user, profile, loading, logout }}>
       {children}
     </AuthContext.Provider>
   );

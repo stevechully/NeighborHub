@@ -1,9 +1,10 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 
 export default function Sidebar() {
   const { profile, logout } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
 
   const roleName =
     profile?.roles?.name || profile?.role || profile?.user_roles?.role || null;
@@ -16,55 +17,61 @@ export default function Sidebar() {
   // Sidebar Links by role
   const links = [];
 
-  links.push({ label: "Dashboard", to: "/dashboard", icon: "🏠" });
+  links.push({ label: "Dashboard", to: "/dashboard" });
 
   if (isResident) {
     links.push(
-      { label: "Complaints", to: "/complaints", icon: "📌" },
-      { label: "Worker Services", to: "/worker-services", icon: "🧑‍🔧" },
-      { label: "Notices", to: "/notices", icon: "📢" },
-      { label: "Events", to: "/events", icon: "🎉" },
-      { label: "Facilities", to: "/facilities", icon: "🏟️" },
-      { label: "Maintenance", to: "/maintenance", icon: "🧾" },
-      { label: "My Visitors & Parcels", to: "/my-parcels", icon: "📦" },
-      { label: "Marketplace", to: "/marketplace", icon: "🛒" }
+      { label: "Complaints", to: "/complaints" },
+      { label: "Worker Services", to: "/worker-services" },
+      { label: "Notices", to: "/notices" },
+      { label: "Events", to: "/events" },
+      { label: "Facilities", to: "/facilities" },
+      { label: "Maintenance", to: "/maintenance" },
+      { label: "My Visitors & Parcels", to: "/my-parcels" },
+      { label: "Marketplace", to: "/marketplace" }
     );
   }
 
   if (isWorker) {
     links.push(
-      { label: "Complaints", to: "/complaints", icon: "📌" },
-      { label: "Worker Services", to: "/worker-services", icon: "🧑‍🔧" },
-      { label: "Marketplace", to: "/marketplace", icon: "🛒" }
+      { label: "Complaints", to: "/complaints" },
+      { label: "Worker Services", to: "/worker-services" },
+      { label: "Marketplace", to: "/marketplace" }
     );
   }
 
   if (isSecurity) {
     links.push(
-      { label: "Gate Management", to: "/gate", icon: "🚪" },
-      { label: "Marketplace", to: "/marketplace", icon: "🛒" }
+      { label: "Gate Management", to: "/gate" },
+      { label: "Marketplace", to: "/marketplace" }
     );
   }
 
   if (isAdmin) {
     links.push(
-      { label: "Complaints", to: "/complaints", icon: "📌" },
-      { label: "Worker Services", to: "/worker-services", icon: "🧑‍🔧" },
-      { label: "Notices", to: "/notices", icon: "📢" },
-      { label: "Events", to: "/events", icon: "🎉" },
-      { label: "Facilities", to: "/facilities", icon: "🏟️" },
-      { label: "Maintenance", to: "/maintenance", icon: "🧾" },
-      { label: "Gate Management", to: "/gate", icon: "🚪" },
-      { label: "Marketplace", to: "/marketplace", icon: "🛒" },
-      { label: "Approve Sellers", to: "/marketplace/sellers", icon: "✅", highlight: true }
+      { label: "Complaints", to: "/complaints" },
+      { label: "Worker Services", to: "/worker-services" },
+      { label: "Notices", to: "/notices" },
+      { label: "Events", to: "/events" },
+      { label: "Facilities", to: "/facilities" },
+      { label: "Maintenance", to: "/maintenance" },
+      { label: "Gate Management", to: "/gate" },
+      { label: "Marketplace", to: "/marketplace" },
+      { label: "Approve Sellers", to: "/marketplace/sellers", highlight: true }
     );
   }
+
+  // Unified logout handler with navigation
+  const handleLogout = async () => {
+    await logout();
+    navigate("/login");
+  };
 
   return (
     <div style={styles.sidebar}>
       {/* Brand */}
       <div style={styles.brand}>
-        <div style={styles.brandLogo}>🏢</div>
+        <div style={styles.brandLogo}>RP</div>
         <div>
           <div style={styles.brandTitle}>Resident Portal</div>
           <div style={styles.brandSub}>Smart Community</div>
@@ -72,7 +79,7 @@ export default function Sidebar() {
       </div>
 
       {/* Links */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         {links.map((item) => {
           const active = location.pathname === item.to;
 
@@ -86,8 +93,7 @@ export default function Sidebar() {
                 ...(item.highlight ? styles.highlightLink : {}),
               }}
             >
-              <span style={{ width: 22 }}>{item.icon}</span>
-              <span style={{ fontWeight: 700 }}>{item.label}</span>
+              <span style={{ fontWeight: 600, fontSize: 14 }}>{item.label}</span>
             </Link>
           );
         })}
@@ -96,12 +102,12 @@ export default function Sidebar() {
       {/* Footer */}
       <div style={styles.footer}>
         <div style={styles.roleBox}>
-          <div style={{ fontSize: 12, color: "#666" }}>Logged in as</div>
-          <div style={{ fontWeight: 800 }}>{roleName || "User"}</div>
+          <div style={{ fontSize: 11, color: "#6b7280", textTransform: 'uppercase', letterSpacing: '0.5px' }}>Role</div>
+          <div style={{ fontWeight: 700, color: "#111827" }}>{roleName || "User"}</div>
         </div>
 
-        <button onClick={logout} style={styles.logoutBtn}>
-          🚪 Logout
+        <button onClick={handleLogout} style={styles.logoutBtn}>
+          Logout
         </button>
       </div>
     </div>
@@ -113,82 +119,79 @@ const styles = {
     width: 260,
     height: "100vh",
     background: "#fff",
-    borderRight: "1px solid #eee",
-    padding: 14,
+    borderRight: "1px solid #e5e7eb",
+    padding: "24px 16px",
     display: "flex",
     flexDirection: "column",
-    gap: 14,
+    gap: 24,
   },
   brand: {
     display: "flex",
-    gap: 10,
+    gap: 12,
     alignItems: "center",
-    padding: 12,
-    borderRadius: 14,
-    background: "#f8fafc",
-    border: "1px solid #eef2f7",
+    padding: "0 8px 16px 8px",
+    borderBottom: "1px solid #f3f4f6",
   },
   brandLogo: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 8,
     display: "grid",
     placeItems: "center",
-    background: "#2563eb",
+    background: "#1e40af",
     color: "#fff",
-    fontSize: 18,
+    fontSize: 14,
+    fontWeight: 800,
   },
   brandTitle: {
-    fontWeight: 900,
+    fontWeight: 700,
     fontSize: 15,
+    color: "#111827",
     lineHeight: 1.2,
   },
   brandSub: {
     fontSize: 12,
-    color: "#666",
+    color: "#6b7280",
   },
   link: {
     display: "flex",
-    gap: 10,
     alignItems: "center",
     padding: "10px 12px",
-    borderRadius: 12,
+    borderRadius: 8,
     textDecoration: "none",
-    color: "#111",
-    border: "1px solid transparent",
-    transition: "0.2s",
+    color: "#4b5563",
+    transition: "0.2s all ease",
   },
   activeLink: {
-    background: "#eff6ff",
-    border: "1px solid #bfdbfe",
-    color: "#1d4ed8",
+    background: "#f3f4f6",
+    color: "#1e40af",
   },
   highlightLink: {
     background: "#fff7ed",
-    border: "1px solid #fed7aa",
-    color: "#9a3412",
+    color: "#c2410c",
   },
   footer: {
     marginTop: "auto",
     display: "flex",
     flexDirection: "column",
-    gap: 10,
-    paddingTop: 12,
-    borderTop: "1px solid #eee",
+    gap: 12,
+    paddingTop: 16,
+    borderTop: "1px solid #f3f4f6",
   },
   roleBox: {
-    padding: 12,
-    borderRadius: 12,
-    background: "#f8fafc",
-    border: "1px solid #eef2f7",
+    padding: "10px 12px",
+    borderRadius: 8,
+    background: "#f9fafb",
   },
   logoutBtn: {
     padding: "10px 12px",
-    borderRadius: 12,
-    border: "none",
-    background: "#ef4444",
-    color: "#fff",
-    fontWeight: 800,
+    borderRadius: 8,
+    border: "1px solid #e5e7eb",
+    background: "#fff",
+    color: "#374151",
+    fontWeight: 600,
+    fontSize: 14,
     cursor: "pointer",
+    transition: "0.2s",
   },
 };

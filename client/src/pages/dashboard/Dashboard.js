@@ -13,84 +13,69 @@ export default function Dashboard() {
   useEffect(() => {
     async function test() {
       try {
-        const data = await fetchComplaints();
-        console.log("✅ Complaints fetched:", data);
+        await fetchComplaints();
       } catch (err) {
-        console.error("❌ Complaints fetch failed:", err.message);
+        console.error("Complaints fetch failed:", err.message);
       }
     }
     test();
   }, []);
 
   return (
-    <div style={{ padding: 10 }}>
+    <div style={{ padding: 40, maxWidth: 1200, margin: "0 auto" }}>
+      
       {/* Header */}
-      <div style={{ marginBottom: 18 }}>
-        <h2 style={{ margin: 0, fontSize: 26, fontWeight: 800 }}>
-          👋 Welcome, {profile?.full_name || "User"}
-        </h2>
-        <p style={{ margin: "6px 0 0", color: "#666" }}>
-          Role: <b>{roleName}</b>
+      <div style={{ marginBottom: 40 }}>
+        <h1 style={{
+          fontSize: 28,
+          fontWeight: 600,
+          marginBottom: 6
+        }}>
+          Welcome back, {profile?.full_name || "User"}
+        </h1>
+
+        <p style={{
+          color: "#6b7280",
+          fontSize: 14
+        }}>
+          {roleName} Dashboard
         </p>
       </div>
 
-      {/* Quick Actions */}
-      <div
-        style={{
-          background: "#fff",
-          borderRadius: 14,
-          padding: 18,
-          border: "1px solid #eee",
-          boxShadow: "0 6px 18px rgba(0,0,0,0.04)",
-        }}
-      >
-        <h3 style={{ marginTop: 0, marginBottom: 8 }}>⚡ Quick Actions</h3>
+      {/* Quick Access Section */}
+      <div>
+        <h2 style={{
+          fontSize: 16,
+          fontWeight: 600,
+          marginBottom: 20,
+          color: "#374151"
+        }}>
+          Quick Access
+        </h2>
 
-        <div style={{ marginTop: 16, display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button style={primaryBtn} onClick={() => navigate("/complaints")}>
-            📌 Complaints
-          </button>
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+          gap: 20,
+        }}>
+          <DashboardCard title="Complaints" onClick={() => navigate("/complaints")} />
+          <DashboardCard title="Maintenance" onClick={() => navigate("/maintenance")} />
+          <DashboardCard title="Parcels" onClick={() => navigate("/my-parcels")} />
+          <DashboardCard title="Marketplace" onClick={() => navigate("/marketplace")} />
+          <DashboardCard title="Worker Services" onClick={() => navigate("/worker-services")} />
+          <DashboardCard title="Facilities" onClick={() => navigate("/facilities")} />
+          <DashboardCard title="Events" onClick={() => navigate("/events")} />
+          <DashboardCard title="Notices" onClick={() => navigate("/notices")} />
 
-          <button style={secondaryBtn} onClick={() => navigate("/maintenance")}>
-            🧾 Maintenance
-          </button>
-
-          <button style={secondaryBtn} onClick={() => navigate("/my-parcels")}>
-            📦 Parcels
-          </button>
-
-          <button style={secondaryBtn} onClick={() => navigate("/marketplace")}>
-            🛒 Marketplace
-          </button>
-
-          <button style={secondaryBtn} onClick={() => navigate("/worker-services")}>
-            🧑‍🔧 Worker Services
-          </button>
-
-          <button style={secondaryBtn} onClick={() => navigate("/facilities")}>
-            🏟️ Facilities
-          </button>
-
-          <button style={secondaryBtn} onClick={() => navigate("/events")}>
-            🎉 Events
-          </button>
-
-          <button style={secondaryBtn} onClick={() => navigate("/notices")}>
-            📢 Notices
-          </button>
-
-          {/* Security/Admin only page */}
           {(roleName === "SECURITY" || roleName === "ADMIN") && (
-            <button style={secondaryBtn} onClick={() => navigate("/gate")}>
-              🚪 Gate Management
-            </button>
+            <DashboardCard title="Gate Management" onClick={() => navigate("/gate")} />
           )}
 
-          {/* Admin only page */}
           {roleName === "ADMIN" && (
-            <button style={secondaryBtn} onClick={() => navigate("/marketplace/sellers")}>
-              ✅ Approve Sellers
-            </button>
+            <DashboardCard
+              title="Seller Approvals"
+              onClick={() => navigate("/marketplace/sellers")}
+            />
           )}
         </div>
       </div>
@@ -98,22 +83,32 @@ export default function Dashboard() {
   );
 }
 
-const primaryBtn = {
-  padding: "10px 14px",
-  borderRadius: 10,
-  border: "none",
-  background: "#2563eb",
-  color: "#fff",
-  fontWeight: 700,
-  cursor: "pointer",
-};
-
-const secondaryBtn = {
-  padding: "10px 14px",
-  borderRadius: 10,
-  border: "1px solid #e5e7eb",
-  background: "#fff",
-  color: "#111",
-  fontWeight: 700,
-  cursor: "pointer",
-};
+/* Clean Modern Card */
+function DashboardCard({ title, onClick }) {
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        background: "#ffffff",
+        padding: "22px 20px",
+        borderRadius: 12,
+        border: "1px solid #e5e7eb",
+        cursor: "pointer",
+        transition: "all 0.15s ease",
+        boxShadow: "0 2px 6px rgba(0,0,0,0.04)",
+        fontWeight: 500,
+        fontSize: 15,
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform = "translateY(-3px)";
+        e.currentTarget.style.boxShadow = "0 10px 25px rgba(0,0,0,0.08)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform = "translateY(0)";
+        e.currentTarget.style.boxShadow = "0 2px 6px rgba(0,0,0,0.04)";
+      }}
+    >
+      {title}
+    </div>
+  );
+}
