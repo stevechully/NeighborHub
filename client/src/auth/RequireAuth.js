@@ -5,35 +5,57 @@ export default function RequireAuth({ children }) {
   const { user, profile, loading } = useAuth();
   const location = useLocation();
 
-  // 1. Wait for AuthContext to finish
+  // 1. Wait for AuthContext to finish checking the session
   if (loading) {
-    return <div style={{ padding: 50, textAlign: 'center' }}>Loading application...</div>;
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh',
+        fontFamily: 'sans-serif' 
+      }}>
+        <p>Loading application...</p>
+      </div>
+    );
   }
 
-  // 2. If no user, go to Login
+  // 2. If no user is logged in, redirect to Login
   if (!user) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // 3. ✅ CRITICAL FIX: If User exists but Profile is missing, STOP HERE.
-  // This prevents the "White Screen" crash in Navbar/Sidebar.
+  // 3. UPDATED: If User exists but Profile is still loading/missing
+  // We show a clean sync message instead of the red debug error.
   if (!profile) {
     return (
-      <div style={{ padding: 40, textAlign: "center", color: "#d00" }}>
-        <h2>⚠️ Profile Error</h2>
-        <p>User is logged in, but we could not load your profile data.</p>
-        <p><strong>Debug Info:</strong> User ID: {user.id}</p>
-        <p>Possible causes: Internet issues, RLS Policies, or Database connection.</p>
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        height: '100vh',
+        flexDirection: 'column',
+        fontFamily: 'sans-serif',
+        color: '#666'
+      }}>
+        <p>Synchronizing your profile...</p>
         <button 
           onClick={() => window.location.reload()}
-          style={{ padding: "10px 20px", cursor: "pointer", marginTop: 20 }}
+          style={{ 
+            marginTop: '10px', 
+            padding: '8px 16px', 
+            cursor: 'pointer',
+            borderRadius: '4px',
+            border: '1px solid #ccc',
+            background: '#fff'
+          }}
         >
-          Retry Connection
+          Refresh Page
         </button>
       </div>
     );
   }
 
-  // 4. Safe to render Dashboard
+  // 4. Profile is loaded, safe to render the protected content
   return children;
 }
