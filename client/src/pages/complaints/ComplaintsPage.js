@@ -13,30 +13,25 @@ import "./complaints.css";
 export default function ComplaintsPage() {
   const { profile } = useAuth();
   
-  // ✅ 1. Robust role detection for joined data
   const roleName = profile?.roles?.name || profile?.role || null;
   const isAdmin = roleName === "ADMIN";
   const isWorker = roleName === "WORKER";
 
-  // State Management
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
   const [workers, setWorkers] = useState([]);
   const [selectedWorker, setSelectedWorker] = useState({});
   const [actionLoadingId, setActionLoadingId] = useState(null);
 
-  // Filters
   const [statusFilter, setStatusFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
 
-  // Form State
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState("LOW");
   const [formLoading, setFormLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // ✅ 2. Stable function with useCallback to prevent infinite loops
   const loadComplaints = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -54,12 +49,10 @@ export default function ComplaintsPage() {
     }
   }, [statusFilter, priorityFilter]);
 
-  // ✅ 3. Effect to load complaints on filter change
   useEffect(() => {
     loadComplaints();
   }, [loadComplaints]);
 
-  // ✅ 4. Effect to load workers list if the user is an ADMIN
   useEffect(() => {
     async function loadWorkersIfAdmin() {
       if (!isAdmin) return;
@@ -72,8 +65,6 @@ export default function ComplaintsPage() {
     }
     loadWorkersIfAdmin();
   }, [isAdmin]);
-
-  // --- Action Handlers ---
 
   async function handleAssignWorker(complaintId) {
     const worker_id = selectedWorker[complaintId];
@@ -145,7 +136,6 @@ export default function ComplaintsPage() {
 
       {error && <div className="error-box">{error}</div>}
 
-      {/* Complaint Creation Form */}
       <div className="card">
         <h3>Create New Complaint</h3>
         <form className="complaint-form" onSubmit={handleCreateComplaint}>
@@ -174,7 +164,6 @@ export default function ComplaintsPage() {
         </form>
       </div>
 
-      {/* Filters */}
       <div className="card">
         <h3>Filters</h3>
         <div className="filters" style={{ display: "flex", gap: "20px" }}>
@@ -202,14 +191,16 @@ export default function ComplaintsPage() {
         </div>
       </div>
 
-      {/* Data Table */}
       <div className="card">
         <h3>Complaint List</h3>
         {loading ? <p>Loading...</p> : (
           <table className="complaints-table">
             <thead>
               <tr>
+                {/* ✅ Added "Raised By" and "Description" Headers */}
+                <th>Raised By</th>
                 <th>Category</th>
+                <th>Description</th>
                 <th>Priority</th>
                 <th>Status</th>
                 <th>Actions</th>
@@ -218,11 +209,13 @@ export default function ComplaintsPage() {
             <tbody>
               {complaints.map((c) => (
                 <tr key={c.id}>
+                  {/* ✅ Displays full name from the joined 'profiles' object */}
+                  <td>{c.profiles?.full_name || c.resident_id}</td>
                   <td>{c.category}</td>
+                  <td>{c.description}</td>
                   <td><span className={`badge priority-${c.priority}`}>{c.priority}</span></td>
                   <td><span className={`badge status-${c.status}`}>{c.status}</span></td>
                   <td>
-                    {/* ADMIN: Assign Worker */}
                     {isAdmin && c.status === "NEW" && (
                       <div style={{ display: "flex", gap: 8 }}>
                         <select
@@ -238,14 +231,12 @@ export default function ComplaintsPage() {
                       </div>
                     )}
                     
-                    {/* ADMIN: Close Resolved Complaint */}
                     {isAdmin && c.status === "RESOLVED" && (
                       <button className="btn" onClick={() => handleCloseComplaint(c.id)} disabled={actionLoadingId === c.id}>
                         Close
                       </button>
                     )}
 
-                    {/* WORKER: Status Lifecycle */}
                     {isWorker && c.status === "ASSIGNED" && (
                       <button className="btn" onClick={() => handleWorkerStatusUpdate(c.id, "IN_PROGRESS")} disabled={actionLoadingId === c.id}>
                         Start

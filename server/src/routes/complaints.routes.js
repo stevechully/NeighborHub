@@ -41,12 +41,21 @@ router.post('/', requireAuth, async (req, res) => {
 
 /**
  * GET /api/complaints
- * Fetch complaints (RLS decides visibility)
+ * Fetch complaints (Includes profile info for "Raised By" display)
  */
 router.get('/', requireAuth, async (req, res) => {
   const { status, priority } = req.query;
 
-  let query = req.supabase.from('complaints').select('*');
+  // ✅ UPDATED: Joined with profiles using resident_id
+  let query = req.supabase
+    .from('complaints')
+    .select(`
+      *,
+      profiles:resident_id (
+        id,
+        full_name
+      )
+    `);
 
   if (status) query = query.eq('status', status);
   if (priority) query = query.eq('priority', priority);
@@ -72,7 +81,6 @@ router.patch('/:id/assign', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'worker_id is required' });
   }
 
-  // 1️⃣ Verify requester is ADMIN (RLS-safe: checking self)
   const { data: roleRow } = await req.supabase
     .from('user_roles')
     .select('role')
@@ -83,7 +91,6 @@ router.patch('/:id/assign', requireAuth, async (req, res) => {
     return res.status(403).json({ error: 'Admin access required' });
   }
 
-  // 2️⃣ 🔥 CRITICAL FIX: Verify WORKER role using admin client (bypass RLS)
   const { data: workerProfile, error: workerError } =
     await supabaseAdmin
       .from('profiles')
@@ -107,7 +114,6 @@ router.patch('/:id/assign', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Worker is inactive' });
   }
 
-  // 3️⃣ Assign worker and update status (RLS enforced)
   const { data, error } = await req.supabase
     .from('complaints')
     .update({
@@ -122,7 +128,6 @@ router.patch('/:id/assign', requireAuth, async (req, res) => {
     return res.status(400).json({ error: error.message });
   }
 
-  // 4️⃣ Audit log (admin-level write)
   await supabaseAdmin.from('audit_logs').insert({
     user_id: req.userId,
     action: 'ASSIGN_WORKER',
@@ -160,7 +165,6 @@ router.patch('/:id/status', requireAuth, async (req, res) => {
     return res.status(403).json({ error: 'Not assigned to this complaint' });
   }
 
-  // Enforce state machine
   if (
     (complaint.status === 'ASSIGNED' && status !== 'IN_PROGRESS') ||
     (complaint.status === 'IN_PROGRESS' && status !== 'RESOLVED')
@@ -189,7 +193,6 @@ router.patch('/:id/status', requireAuth, async (req, res) => {
 router.patch('/:id/close', requireAuth, async (req, res) => {
   const complaintId = req.params.id;
 
-  // Verify admin role
   const { data: roleRow } = await req.supabase
     .from('user_roles')
     .select('role')
@@ -232,4 +235,3 @@ router.patch('/:id/close', requireAuth, async (req, res) => {
 });
 
 export default router;
-
