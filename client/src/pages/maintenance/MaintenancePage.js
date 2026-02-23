@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from "react"; // Added useCallback
+import { useEffect, useMemo, useState, useCallback } from "react"; 
 import { useNavigate } from "react-router-dom"; 
 import { useAuth } from "../../auth/AuthContext";
 import {
@@ -21,7 +21,7 @@ export default function MaintenancePage() {
 
   const [invoices, setInvoices] = useState([]);
   const [payments, setPayments] = useState([]);
-  const [loading, setLoading] = useState(true); // Now used below
+  const [loading, setLoading] = useState(true); 
 
   const [amount, setAmount] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -29,9 +29,8 @@ export default function MaintenancePage() {
 
   const [payingId, setPayingId] = useState(null);
   const paymentMethods = useMemo(() => ["MOCK_UPI", "MOCK_CARD", "CASH", "BANK_TRANSFER"], []);
-  const [paymentMethod, setPaymentMethod] = useState("MOCK_UPI"); // Now used below
+  const [paymentMethod, setPaymentMethod] = useState("MOCK_UPI"); 
 
-  // Wrapped in useCallback to fix the useEffect dependency warning
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
@@ -61,7 +60,7 @@ export default function MaintenancePage() {
     if (!authLoading && profile) {
       loadData();
     }
-  }, [authLoading, profile, loadData]); // loadData is now a stable dependency
+  }, [authLoading, profile, loadData]); 
 
   async function handleGenerateInvoices(e) {
     e.preventDefault();
@@ -103,7 +102,13 @@ export default function MaintenancePage() {
           <h3>Admin: Generate Invoices</h3>
           <form onSubmit={handleGenerateInvoices} style={{ display: "flex", gap: 10 }}>
             <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="Amount" />
-            <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} />
+            {/* ✅ FIX APPLIED HERE */}
+            <input 
+              type="date" 
+              min={new Date().toISOString().split("T")[0]} 
+              value={dueDate} 
+              onChange={e => setDueDate(e.target.value)} 
+            />
             <button type="submit" disabled={generating}>{generating ? "..." : "Generate"}</button>
           </form>
         </div>
@@ -111,7 +116,6 @@ export default function MaintenancePage() {
 
       <div style={{ background: "#fff", padding: 16, borderRadius: 10, marginBottom: 16 }}>
         <h3>Invoices</h3>
-        {/* FIX: Using 'loading' state here */}
         {loading ? <p>Loading...</p> : (
           <table width="100%" cellPadding="10" style={{ borderCollapse: "collapse" }}>
             <thead>
@@ -126,7 +130,6 @@ export default function MaintenancePage() {
                   <td>
                     {isResident && inv.status !== "PAID" && (
                       <div style={{ display: 'flex', gap: '5px' }}>
-                        {/* FIX: Using 'paymentMethods' and 'setPaymentMethod' here */}
                         <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)}>
                           {paymentMethods.map(m => <option key={m} value={m}>{m}</option>)}
                         </select>

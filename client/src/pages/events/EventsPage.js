@@ -146,8 +146,10 @@ export default function EventsPage() {
               <div>
                 <label>Date & Time</label>
                 <br />
+                {/* ✅ FIX APPLIED HERE */}
                 <input
                   type="datetime-local"
+                  min={new Date().toISOString().slice(0, 16)}
                   value={eventDate}
                   onChange={(e) => setEventDate(e.target.value)}
                 />

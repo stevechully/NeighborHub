@@ -163,8 +163,10 @@ export default function NoticesPage() {
               <div>
                 <label>Expires At (optional)</label>
                 <br />
+                {/* ✅ FIX APPLIED HERE */}
                 <input
                   type="datetime-local"
+                  min={new Date().toISOString().slice(0, 16)}
                   value={expiresAt}
                   onChange={(e) => setExpiresAt(e.target.value)}
                 />

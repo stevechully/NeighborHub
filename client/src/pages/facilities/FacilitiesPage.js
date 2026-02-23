@@ -17,7 +17,6 @@ export default function FacilitiesPage() {
 
   // booking form values per facility
   const [bookingForm, setBookingForm] = useState({});
-  // bookingForm = { [facilityId]: { start_time: "", end_time: "" } }
 
   async function loadFacilities() {
     try {
@@ -58,7 +57,6 @@ export default function FacilitiesPage() {
       return;
     }
 
-    // Convert to ISO string (safe for timestamp columns)
     const startISO = new Date(start_time).toISOString();
     const endISO = new Date(end_time).toISOString();
 
@@ -75,7 +73,6 @@ export default function FacilitiesPage() {
 
       alert("Facility booking request created ✅ (PENDING)");
 
-      // reset this facility form
       setBookingForm((prev) => ({
         ...prev,
         [facilityId]: { start_time: "", end_time: "" },
@@ -154,7 +151,6 @@ export default function FacilitiesPage() {
                 </div>
               </div>
 
-              {/* Booking UI only for RESIDENT */}
               {isResident ? (
                 <div
                   style={{
@@ -168,8 +164,10 @@ export default function FacilitiesPage() {
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     <div>
                       <label style={{ fontSize: 13 }}>Start Time</label>
+                      {/* ✅ FIX APPLIED HERE */}
                       <input
                         type="datetime-local"
+                        min={new Date().toISOString().slice(0, 16)}
                         value={bookingForm?.[f.id]?.start_time || ""}
                         onChange={(e) =>
                           handleChange(f.id, "start_time", e.target.value)
@@ -185,8 +183,10 @@ export default function FacilitiesPage() {
 
                     <div>
                       <label style={{ fontSize: 13 }}>End Time</label>
+                      {/* ✅ FIX APPLIED HERE */}
                       <input
                         type="datetime-local"
+                        min={new Date().toISOString().slice(0, 16)}
                         value={bookingForm?.[f.id]?.end_time || ""}
                         onChange={(e) =>
                           handleChange(f.id, "end_time", e.target.value)

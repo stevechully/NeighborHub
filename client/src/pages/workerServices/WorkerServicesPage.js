@@ -43,17 +43,13 @@ export default function WorkerServicesPage() {
         isAdmin
       );
 
-      // ✅ QUICK DEBUG: Check role and data in console
-      console.log("ADMIN?", isAdmin, "ROLE:", roleName);
-      console.log("FETCHED BOOKINGS:", data);
-
       setBookings(data || []);
     } catch (err) {
       console.log("❌ Worker bookings fetch failed:", err.message);
     } finally {
       setDataLoading(false);
     }
-  }, [statusFilter, isAdmin, roleName]);
+  }, [statusFilter, isAdmin]); // ✅ Fixed: Removed unnecessary 'roleName' dependency
 
   const loadWorkers = useCallback(async () => {
     if (!isAdmin) return;
@@ -150,7 +146,12 @@ export default function WorkerServicesPage() {
                 placeholder="Describe issue..." style={{ width: "100%", margin: "10px 0", padding: "8px" }} 
               />
               <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
-                <input type="date" value={preferredDate} onChange={(e) => setPreferredDate(e.target.value)} />
+                <input 
+                  type="date" 
+                  min={new Date().toISOString().split("T")[0]} 
+                  value={preferredDate} 
+                  onChange={(e) => setPreferredDate(e.target.value)} 
+                />
                 <input type="time" value={preferredTime} onChange={(e) => setPreferredTime(e.target.value)} />
               </div>
               <button className="btn primary" type="submit" disabled={submitting}>Create Booking</button>
@@ -169,7 +170,6 @@ export default function WorkerServicesPage() {
             </thead>
             <tbody>
               {bookings.map((b) => {
-                // ✅ EXACT PATCH: Normalize status string
                 const bookingStatus = (b.status || "").toUpperCase().trim();
 
                 return (
@@ -179,7 +179,6 @@ export default function WorkerServicesPage() {
                     <td><strong className={`status-${bookingStatus.toLowerCase()}`}>{b.status}</strong></td>
                     <td>{b.worker_id || "-"}</td>
                     <td>
-                      {/* ✅ ADMIN Logic */}
                       {isAdmin && bookingStatus === "REQUESTED" && (
                         <div style={{ display: "flex", gap: 5 }}>
                           <select 
@@ -193,7 +192,6 @@ export default function WorkerServicesPage() {
                         </div>
                       )}
 
-                      {/* ✅ WORKER Logic */}
                       {isWorker && bookingStatus === "ASSIGNED" && (
                           <button onClick={() => handleWorkerStatusUpdate(b.id, "IN_PROGRESS")}>Start Work</button>
                       )}
@@ -202,7 +200,6 @@ export default function WorkerServicesPage() {
                           <button onClick={() => handleWorkerStatusUpdate(b.id, "COMPLETED")}>Mark Completed</button>
                       )}
 
-                      {/* Resident Feedback */}
                       {!isAdmin && !isWorker && bookingStatus === "REQUESTED" && (
                         <small style={{ color: "gray" }}>Waiting for assignment</small>
                       )}
