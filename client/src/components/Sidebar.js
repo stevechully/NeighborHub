@@ -25,6 +25,7 @@ export default function Sidebar() {
       { label: "Worker Services", to: "/worker-services" },
       { label: "Notices", to: "/notices" },
       { label: "Events", to: "/events" },
+      { label: "My Events", to: "/my-events" }, // ✅ Added My Events Link
       { label: "Facilities", to: "/facilities" },
       { label: "Maintenance", to: "/maintenance" },
       { label: "My Visitors & Parcels", to: "/my-parcels" },
@@ -61,7 +62,6 @@ export default function Sidebar() {
     );
   }
 
-  // Unified logout handler with navigation
   const handleLogout = async () => {
     await logout();
     navigate("/login");
@@ -69,7 +69,6 @@ export default function Sidebar() {
 
   return (
     <div style={styles.sidebar}>
-      {/* Brand */}
       <div style={styles.brand}>
         <div style={styles.brandLogo}>RP</div>
         <div>
@@ -78,7 +77,6 @@ export default function Sidebar() {
         </div>
       </div>
 
-      {/* Links */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         {links.map((item) => {
           const active = location.pathname === item.to;
@@ -99,7 +97,6 @@ export default function Sidebar() {
         })}
       </div>
 
-      {/* Footer */}
       <div style={styles.footer}>
         <div style={styles.roleBox}>
           <div style={{ fontSize: 11, color: "#6b7280", textTransform: 'uppercase', letterSpacing: '0.5px' }}>Role</div>

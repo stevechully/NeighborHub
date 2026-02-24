@@ -56,13 +56,78 @@ router.get('/', requireAuth, async (req, res) => {
 });
 
 /**
+ * POST /api/worker-services/:id/pay
+ * Resident pays for a completed service
+ */
+router.post('/:id/pay', requireAuth, async (req, res) => {
+  const bookingId = req.params.id;
+  const userId = req.userId;
+  const { payment_method } = req.body;
+
+  // 1. Fetch the booking
+  const { data: booking, error: fetchError } = await req.supabase
+    .from('worker_bookings')
+    .select('*')
+    .eq('id', bookingId)
+    .single();
+
+  if (fetchError || !booking) {
+    return res.status(404).json({ error: 'Service booking not found' });
+  }
+
+  // 2. Authorization check
+  if (booking.resident_id !== userId) {
+    return res.status(403).json({ error: 'Not authorized to pay for this service' });
+  }
+
+  // 3. Status check (Must be completed before payment)
+  if (booking.status !== 'COMPLETED') {
+    return res.status(400).json({ error: 'Service must be completed before payment' });
+  }
+
+  const transactionRef = `WS-${Date.now()}`;
+
+  // 4. Create payment record (Using supabaseAdmin to bypass RLS if necessary)
+  const { error: paymentError } = await supabaseAdmin
+    .from('worker_service_payments')
+    .insert({
+      service_request_id: bookingId,
+      resident_id: userId,
+      amount_paid: booking.amount || 0, // Fallback if amount isn't set
+      payment_method,
+      transaction_ref: transactionRef
+    });
+
+  if (paymentError) {
+    return res.status(400).json({ error: paymentError.message });
+  }
+
+  // 5. Update booking status to PAID
+  const { data, error: updateError } = await req.supabase
+    .from('worker_bookings')
+    .update({ status: 'PAID' })
+    .eq('id', bookingId)
+    .select()
+    .single();
+
+  if (updateError) {
+    return res.status(400).json({ error: updateError.message });
+  }
+
+  res.json({
+    success: true,
+    transaction_ref: transactionRef,
+    data
+  });
+});
+
+/**
  * GET /api/worker-services/admin/all
  * Admin fetches ALL worker bookings (bypass RLS)
  */
 router.get('/admin/all', requireAuth, async (req, res) => {
   const { status } = req.query;
 
-  // 1) Verify ADMIN using RLS-safe check (checking the requester's own role)
   const { data: roleRow, error: roleError } = await req.supabase
     .from('user_roles')
     .select('role')
@@ -77,7 +142,6 @@ router.get('/admin/all', requireAuth, async (req, res) => {
     return res.status(403).json({ error: 'Admin access required' });
   }
 
-  // 2) Fetch ALL bookings using supabaseAdmin (Service Role bypasses RLS)
   let query = supabaseAdmin.from('worker_bookings').select('*');
 
   if (status) {
@@ -105,7 +169,6 @@ router.patch('/:id/assign', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'worker_id is required' });
   }
 
-  // 1️⃣ Verify admin
   const { data: roleRow } = await req.supabase
     .from('user_roles')
     .select('role')
@@ -116,7 +179,6 @@ router.patch('/:id/assign', requireAuth, async (req, res) => {
     return res.status(403).json({ error: 'Admin access required' });
   }
 
-  // 2️⃣ Validate worker (admin client)
   const { data: workerProfile, error: workerError } =
     await supabaseAdmin
       .from('profiles')
@@ -140,7 +202,6 @@ router.patch('/:id/assign', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Worker is inactive' });
   }
 
-  // 3️⃣ Assign worker
   const { data, error } = await req.supabase
     .from('worker_bookings')
     .update({

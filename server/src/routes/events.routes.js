@@ -22,7 +22,7 @@ async function isAdmin(supabase, userId) {
  * Admin creates an event
  */
 router.post('/', requireAuth, async (req, res) => {
-  const { title, description, event_date, location, capacity } = req.body;
+  const { title, description, event_date, location, capacity, is_paid, fee } = req.body;
 
   if (!title || !event_date || !location || !capacity) {
     return res.status(400).json({ error: 'Missing required fields' });
@@ -40,6 +40,8 @@ router.post('/', requireAuth, async (req, res) => {
       event_date,
       location,
       capacity,
+      is_paid: is_paid || false,
+      fee: fee || 0,
       created_by: req.userId,
     })
     .select()
@@ -78,76 +80,132 @@ router.get('/', requireAuth, async (_req, res) => {
 });
 
 /**
- * POST /api/events/:id/join
- * Resident joins an event (RSVP)
+ * GET /api/events/my
+ * ✅ NEW: Fetch events current user has registered for
  */
-router.post('/:id/join', requireAuth, async (req, res) => {
-  const eventId = req.params.id;
+router.get('/my', requireAuth, async (req, res) => {
   const userId = req.userId;
 
-  // 1️⃣ Fetch event
-  const { data: event, error: eventError } = await req.supabase
-    .from('events')
-    .select('id, capacity, event_date')
-    .eq('id', eventId)
-    .single();
-
-  if (eventError || !event) {
-    return res.status(404).json({ error: 'Event not found' });
-  }
-
-  if (new Date(event.event_date) < new Date()) {
-    return res.status(400).json({ error: 'Event already occurred' });
-  }
-
-  // 2️⃣ Check if already joined
-  const { data: existing } = await req.supabase
-    .from('event_participants')
-    .select('event_id')
-    .eq('event_id', eventId)
-    .eq('user_id', userId)
-    .single();
-
-  if (existing) {
-    return res.status(400).json({ error: 'Already joined this event' });
-  }
-
-  // 3️⃣ Capacity check
-  const { count } = await req.supabase
-    .from('event_participants')
-    .select('*', { count: 'exact', head: true })
-    .eq('event_id', eventId);
-
-  if (count >= event.capacity) {
-    return res.status(400).json({ error: 'Event capacity reached' });
-  }
-
-  // 4️⃣ Join event
-  const { error } = await req.supabase
-    .from('event_participants')
-    .insert({
-      event_id: eventId,
-      user_id: userId,
-      joined_at: new Date().toISOString(),
-    });
+  const { data, error } = await req.supabase
+    .from('event_registrations')
+    .select(`
+      id,
+      payment_status,
+      events (
+        id,
+        title,
+        event_date,
+        location,
+        is_paid,
+        fee
+      )
+    `)
+    .eq('user_id', userId);
 
   if (error) {
     return res.status(400).json({ error: error.message });
   }
 
-  await supabaseAdmin.from('audit_logs').insert({
+  // Formatting for cleaner frontend consumption
+  const formatted = data.map((item) => ({
+    registration_id: item.id,
+    payment_status: item.payment_status,
+    ...item.events
+  }));
+
+  res.json(formatted);
+});
+
+/**
+ * POST /api/events/:id/register
+ * Resident registers for an event
+ */
+router.post('/:id/register', requireAuth, async (req, res) => {
+  const eventId = req.params.id;
+  const userId = req.userId;
+
+  const { data: event } = await req.supabase
+    .from('events')
+    .select('*')
+    .eq('id', eventId)
+    .single();
+
+  if (!event) {
+    return res.status(404).json({ error: 'Event not found' });
+  }
+
+  const { data: existing } = await req.supabase
+    .from('event_registrations')
+    .select('id')
+    .eq('event_id', eventId)
+    .eq('user_id', userId)
+    .single();
+
+  if (existing) {
+    return res.status(400).json({ error: 'Already registered' });
+  }
+
+  const paymentStatus = event.is_paid ? 'PENDING' : 'PAID';
+
+  const { data, error } = await req.supabase
+    .from('event_registrations')
+    .insert({
+      event_id: eventId,
+      user_id: userId,
+      payment_status: paymentStatus
+    })
+    .select()
+    .single();
+
+  if (error) return res.status(400).json({ error: error.message });
+
+  res.status(201).json(data);
+});
+
+/**
+ * POST /api/events/:id/pay
+ * Resident pays for a paid event
+ */
+router.post('/:id/pay', requireAuth, async (req, res) => {
+  const eventId = req.params.id;
+  const userId = req.userId;
+  const { payment_method } = req.body;
+
+  const { data: event } = await req.supabase
+    .from('events')
+    .select('*')
+    .eq('id', eventId)
+    .single();
+
+  if (!event || !event.is_paid) {
+    return res.status(400).json({ error: 'Invalid event' });
+  }
+
+  const transactionRef = `EVT-${Date.now()}`;
+
+  await req.supabase.from('event_payments').insert({
+    event_id: eventId,
     user_id: userId,
-    action: 'JOIN_EVENT',
-    table_name: 'event_participants',
-    record_id: eventId,
+    amount_paid: event.fee,
+    payment_method,
+    transaction_ref: transactionRef
   });
 
-  res.status(201).json({ success: true });
+  await req.supabase
+    .from('event_registrations')
+    .update({ payment_status: 'PAID' })
+    .eq('event_id', eventId)
+    .eq('user_id', userId);
+
+  res.json({
+    success: true,
+    transaction_ref: transactionRef
+  });
 });
 
 /**
  * DELETE /api/events/:id
- * Admin deletes an event (hard delete)
+ * Admin deletes an event
  */
 router.delete('/:id', requireAuth, async (req, res) => {
   const eventId = req.params.id;
@@ -156,9 +214,8 @@ router.delete('/:id', requireAuth, async (req, res) => {
     return res.status(403).json({ error: 'Admin access required' });
   }
 
-  // Remove participants first
   await req.supabase
-    .from('event_participants')
+    .from('event_registrations')
     .delete()
     .eq('event_id', eventId);
 

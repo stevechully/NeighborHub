@@ -6,7 +6,6 @@ import { apiFetch } from "./client";
  * - Admin: uses admin endpoint to bypass RLS
  */
 export function fetchWorkerBookings(filters = {}, isAdmin = false) {
-  // ✅ FIX: Only include status in the query if it actually has a value
   const cleanFilters = {};
   if (filters.status) {
     cleanFilters.status = filters.status;
@@ -51,5 +50,16 @@ export function updateWorkerBookingStatus(id, status) {
   return apiFetch(`/api/worker-services/${id}/status`, {
     method: "PATCH",
     body: JSON.stringify({ status }),
+  });
+}
+
+/**
+ * POST /api/worker-services/:id/pay
+ * Resident pays for a completed service
+ */
+export function payForWorkerService(id, payload) {
+  return apiFetch(`/api/worker-services/${id}/pay`, {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }

@@ -14,6 +14,8 @@ import MarketplacePage from "./pages/marketplace/MarketplacePage";
 import MarketplaceReceiptPage from "./pages/marketplace/MarketplaceReceiptPage";
 import Signup from "./pages/auth/Signup";
 import MarketplaceSellersAdminPage from "./pages/marketplace/MarketplaceSellersAdminPage";
+import MyEvents from "./pages/events/MyEvents";
+
 
 
 
@@ -199,6 +201,8 @@ function App() {
           
           {/* Catch-all */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/my-events" element={<MyEvents />} />
+
         </Routes>
       </AuthProvider>
     </BrowserRouter>

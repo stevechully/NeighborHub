@@ -5,6 +5,7 @@ import {
   fetchWorkerBookings,
   updateWorkerBookingStatus,
   assignWorkerToBooking,
+  payForWorkerService, // Ensure this is exported from your workerServices.api.js
 } from "../../api/workerServices.api";
 import { fetchWorkers } from "../../api/admin.api";
 
@@ -23,6 +24,8 @@ export default function WorkerServicesPage() {
 
   const [workers, setWorkers] = useState([]);
   const [selectedWorker, setSelectedWorker] = useState({});
+  const [paymentMethod, setPaymentMethod] = useState({}); // Tracking method per booking
+  const [actionLoadingId, setActionLoadingId] = useState(null);
 
   // Role Detection
   const roleName = profile?.roles?.name || profile?.role || profile?.user_roles?.role || null;
@@ -31,9 +34,11 @@ export default function WorkerServicesPage() {
   const isResident = roleName === "RESIDENT";
 
   const statusOptions = useMemo(
-    () => ["REQUESTED", "ASSIGNED", "IN_PROGRESS", "COMPLETED", "CANCELLED"],
+    () => ["REQUESTED", "ASSIGNED", "IN_PROGRESS", "COMPLETED", "PAID", "CANCELLED"],
     []
   );
+
+  const paymentOptions = ["UPI", "CARD", "CASH", "NET_BANKING"];
 
   const loadBookings = useCallback(async () => {
     try {
@@ -42,14 +47,13 @@ export default function WorkerServicesPage() {
         { status: statusFilter || undefined },
         isAdmin
       );
-
       setBookings(data || []);
     } catch (err) {
       console.log("❌ Worker bookings fetch failed:", err.message);
     } finally {
       setDataLoading(false);
     }
-  }, [statusFilter, isAdmin]); // ✅ Fixed: Removed unnecessary 'roleName' dependency
+  }, [statusFilter, isAdmin]);
 
   const loadWorkers = useCallback(async () => {
     if (!isAdmin) return;
@@ -73,6 +77,8 @@ export default function WorkerServicesPage() {
     }
   }, [loadWorkers, profile, isAdmin, authLoading]);
 
+  // --- Handlers ---
+
   async function handleCreateBooking(e) {
     e.preventDefault();
     if (!description || !preferredDate || !preferredTime) {
@@ -94,21 +100,37 @@ export default function WorkerServicesPage() {
   }
 
   async function handleWorkerStatusUpdate(bookingId, status) {
+    setActionLoadingId(bookingId);
     try {
       await updateWorkerBookingStatus(bookingId, status);
       await loadBookings();
-      alert("Status updated ✅");
-    } catch (err) { alert(err.message); }
+      alert(`Service marked as ${status} ✅`);
+    } catch (err) { alert(err.message); } finally { setActionLoadingId(null); }
   }
 
   async function handleAdminAssignWorker(bookingId) {
     const workerId = selectedWorker[bookingId];
     if (!workerId) { alert("Select a worker first"); return; }
+    setActionLoadingId(bookingId);
     try {
       await assignWorkerToBooking(bookingId, workerId);
       await loadBookings();
       alert("Worker assigned ✅");
-    } catch (err) { alert(err.message); }
+    } catch (err) { alert(err.message); } finally { setActionLoadingId(null); }
+  }
+
+  async function handlePayment(bookingId) {
+    const method = paymentMethod[bookingId] || "UPI";
+    setActionLoadingId(bookingId);
+    try {
+      const res = await payForWorkerService(bookingId, { payment_method: method });
+      alert(`Payment Successful! ✅ Ref: ${res.transaction_ref}`);
+      await loadBookings();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setActionLoadingId(null);
+    }
   }
 
   if (authLoading || !profile) {
@@ -179,6 +201,7 @@ export default function WorkerServicesPage() {
                     <td><strong className={`status-${bookingStatus.toLowerCase()}`}>{b.status}</strong></td>
                     <td>{b.worker_id || "-"}</td>
                     <td>
+                      {/* ADMIN: Assign Worker */}
                       {isAdmin && bookingStatus === "REQUESTED" && (
                         <div style={{ display: "flex", gap: 5 }}>
                           <select 
@@ -188,20 +211,50 @@ export default function WorkerServicesPage() {
                             <option value="">Select Worker</option>
                             {workers.map(w => <option key={w.id} value={w.id}>{w.full_name}</option>)}
                           </select>
-                          <button onClick={() => handleAdminAssignWorker(b.id)}>Assign</button>
+                          <button onClick={() => handleAdminAssignWorker(b.id)} disabled={actionLoadingId === b.id}>
+                            {actionLoadingId === b.id ? "..." : "Assign"}
+                          </button>
                         </div>
                       )}
 
+                      {/* WORKER: Progression */}
                       {isWorker && bookingStatus === "ASSIGNED" && (
-                          <button onClick={() => handleWorkerStatusUpdate(b.id, "IN_PROGRESS")}>Start Work</button>
+                        <button onClick={() => handleWorkerStatusUpdate(b.id, "IN_PROGRESS")} disabled={actionLoadingId === b.id}>
+                          {actionLoadingId === b.id ? "..." : "Start Work"}
+                        </button>
                       )}
-                      
                       {isWorker && bookingStatus === "IN_PROGRESS" && (
-                          <button onClick={() => handleWorkerStatusUpdate(b.id, "COMPLETED")}>Mark Completed</button>
+                        <button onClick={() => handleWorkerStatusUpdate(b.id, "COMPLETED")} disabled={actionLoadingId === b.id}>
+                          {actionLoadingId === b.id ? "..." : "Mark Completed"}
+                        </button>
                       )}
 
-                      {!isAdmin && !isWorker && bookingStatus === "REQUESTED" && (
+                      {/* RESIDENT: Payment */}
+                      {isResident && bookingStatus === "COMPLETED" && (
+                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                          <select 
+                            value={paymentMethod[b.id] || "UPI"} 
+                            onChange={(e) => setPaymentMethod(prev => ({ ...prev, [b.id]: e.target.value }))}
+                          >
+                            {paymentOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                          </select>
+                          <button 
+                            className="btn success" 
+                            style={{ background: "#28a745", color: "white" }}
+                            onClick={() => handlePayment(b.id)}
+                            disabled={actionLoadingId === b.id}
+                          >
+                            {actionLoadingId === b.id ? "Processing..." : `Pay ₹${b.amount || 0}`}
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Status Labels */}
+                      {isResident && bookingStatus === "REQUESTED" && (
                         <small style={{ color: "gray" }}>Waiting for assignment</small>
+                      )}
+                      {bookingStatus === "PAID" && (
+                        <span style={{ color: "#28a745", fontWeight: "bold" }}>Payment Received ✅</span>
                       )}
                     </td>
                   </tr>

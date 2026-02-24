@@ -13,10 +13,18 @@ export function createEvent(payload) {
   });
 }
 
-// POST /api/events/:id/join (RESIDENT)
-export function joinEvent(eventId) {
-  return apiFetch(`/api/events/${eventId}/join`, {
+// POST /api/events/:id/register (RESIDENT)
+export function registerForEvent(eventId) {
+  return apiFetch(`/api/events/${eventId}/register`, {
     method: "POST",
+  });
+}
+
+// POST /api/events/:id/pay (RESIDENT)
+export function payForEvent(eventId, payload) {
+  return apiFetch(`/api/events/${eventId}/pay`, {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
-import { createEvent, deleteEvent, fetchEvents, joinEvent } from "../../api/events.api";
+import { createEvent, deleteEvent, fetchEvents, registerForEvent, payForEvent } from "../../api/events.api";
 
 export default function EventsPage() {
   const { profile, loading: authLoading } = useAuth();
@@ -20,6 +20,8 @@ export default function EventsPage() {
   const [eventDate, setEventDate] = useState("");
   const [location, setLocation] = useState("");
   const [capacity, setCapacity] = useState(10);
+  const [isPaid, setIsPaid] = useState(false);
+  const [fee, setFee] = useState("");
 
   async function loadEvents() {
     try {
@@ -55,6 +57,8 @@ export default function EventsPage() {
         event_date: new Date(eventDate).toISOString(),
         location,
         capacity: Number(capacity),
+        is_paid: isPaid,
+        fee: isPaid ? Number(fee) : 0
       });
 
       setTitle("");
@@ -62,6 +66,8 @@ export default function EventsPage() {
       setEventDate("");
       setLocation("");
       setCapacity(10);
+      setIsPaid(false);
+      setFee("");
 
       await loadEvents();
       alert("Event created ✅");
@@ -70,11 +76,30 @@ export default function EventsPage() {
     }
   }
 
-  async function handleJoinEvent(id) {
+  async function handleRegister(eventId) {
     try {
-      await joinEvent(id);
-      alert("Joined event ✅");
-      await loadEvents();
+      const res = await registerForEvent(eventId);
+
+      if (res.payment_status === "PENDING") {
+        alert("Registration created. Please pay to confirm your spot.");
+      } else {
+        alert("Registered successfully ✅");
+      }
+
+      loadEvents();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  async function handlePay(eventId) {
+    try {
+      const res = await payForEvent(eventId, {
+        payment_method: "MOCK_UPI"
+      });
+
+      alert("Payment successful ✅ Ref: " + res.transaction_ref);
+      loadEvents();
     } catch (err) {
       alert(err.message);
     }
@@ -146,7 +171,6 @@ export default function EventsPage() {
               <div>
                 <label>Date & Time</label>
                 <br />
-                {/* ✅ FIX APPLIED HERE */}
                 <input
                   type="datetime-local"
                   min={new Date().toISOString().slice(0, 16)}
@@ -174,6 +198,30 @@ export default function EventsPage() {
                   min={1}
                 />
               </div>
+              
+              <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                <label>
+                  <input 
+                    type="checkbox" 
+                    checked={isPaid} 
+                    onChange={(e) => setIsPaid(e.target.checked)} 
+                  /> 
+                  Is Paid?
+                </label>
+              </div>
+
+              {isPaid && (
+                <div>
+                  <label>Fee (₹)</label>
+                  <br />
+                  <input
+                    type="number"
+                    value={fee}
+                    onChange={(e) => setFee(e.target.value)}
+                    min={0}
+                  />
+                </div>
+              )}
             </div>
 
             <button type="submit">Create Event</button>
@@ -212,9 +260,26 @@ export default function EventsPage() {
                   <td>{e.capacity}</td>
                   <td>
                     {isResident && (
-                      <button onClick={() => handleJoinEvent(e.id)}>
-                        Join
-                      </button>
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        {e.is_paid ? (
+                          <>
+                            <button onClick={() => handleRegister(e.id)}>
+                              Register (₹{e.fee})
+                            </button>
+                            {/* Adding a manual Pay button to complete the testing flow easily */}
+                            <button 
+                              onClick={() => handlePay(e.id)} 
+                              style={{ background: "#28a745", color: "white", border: "none", borderRadius: "4px", padding: "5px 10px" }}
+                            >
+                              Pay Now
+                            </button>
+                          </>
+                        ) : (
+                          <button onClick={() => handleRegister(e.id)}>
+                            Register (Free)
+                          </button>
+                        )}
+                      </div>
                     )}
 
                     {isAdmin && (
