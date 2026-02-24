@@ -35,7 +35,7 @@ router.post('/', requireAuth, async (req, res) => {
 
 /**
  * GET /api/worker-services
- * Fetch service requests (RLS enforced - users see only their own data)
+ * Fetch service requests (RLS enforced)
  */
 router.get('/', requireAuth, async (req, res) => {
   const { status } = req.query;
@@ -80,20 +80,24 @@ router.post('/:id/pay', requireAuth, async (req, res) => {
     return res.status(403).json({ error: 'Not authorized to pay for this service' });
   }
 
-  // 3. Status check (Must be completed before payment)
+  // 3. Status check
   if (booking.status !== 'COMPLETED') {
     return res.status(400).json({ error: 'Service must be completed before payment' });
   }
 
   const transactionRef = `WS-${Date.now()}`;
+  
+  // Handle amount fallback if the column is missing or empty in worker_bookings
+  const finalAmount = booking.amount || 500; 
 
-  // 4. Create payment record (Using supabaseAdmin to bypass RLS if necessary)
+  // 4. Create payment record
+  // ✅ CHANGED: service_request_id -> booking_id
   const { error: paymentError } = await supabaseAdmin
-    .from('worker_service_payments')
+    .from('worker_payments')
     .insert({
-      service_request_id: bookingId,
+      booking_id: bookingId, 
       resident_id: userId,
-      amount_paid: booking.amount || 0, // Fallback if amount isn't set
+      amount_paid: finalAmount,
       payment_method,
       transaction_ref: transactionRef
     });
@@ -123,7 +127,7 @@ router.post('/:id/pay', requireAuth, async (req, res) => {
 
 /**
  * GET /api/worker-services/admin/all
- * Admin fetches ALL worker bookings (bypass RLS)
+ * Admin fetches ALL worker bookings
  */
 router.get('/admin/all', requireAuth, async (req, res) => {
   const { status } = req.query;
