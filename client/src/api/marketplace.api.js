@@ -7,7 +7,6 @@ export function fetchMarketplaceProducts() {
 
 export function fetchAllMarketplaceProducts() {
   return apiFetch("/api/marketplace/products/all"); 
-  // (We'll add this route below if you don't have it)
 }
 
 export function createMarketplaceProduct(payload) {
@@ -31,7 +30,18 @@ export function placeMarketplaceOrder(payload) {
   });
 }
 
-export function fetchMarketplaceOrders() {
+/**
+ * ✅ For Residents: Fetch their own orders merged with payment/refund data
+ */
+export function fetchMyMarketplaceOrders() {
+  return apiFetch("/api/marketplace/my-orders");
+}
+
+/**
+ * ✅ For Admins: Fetch ALL orders 
+ * (Renamed to match fetchAllMarketplaceProducts)
+ */
+export function fetchAllMarketplaceOrders() {
   return apiFetch("/api/marketplace/orders");
 }
 
@@ -53,4 +63,24 @@ export function fetchAllMarketplacePayments() {
 
 export function fetchMarketplacePaymentReceipt(paymentId) {
   return apiFetch(`/api/marketplace/payments/${paymentId}/receipt`);
+}
+
+/**
+ * ✅ FIXED: Aligned exactly with the backend refund route we created
+ * POST /api/marketplace/payments/:id/refund
+ */
+/**
+ * ✅ FIXED: Pointing back to the global refunds router so Admins can see it!
+ */
+export function requestMarketplaceRefund(paymentId, reason = "Product issue") {
+  return apiFetch("/api/refunds/marketplace/request", {
+    method: "POST",
+    body: JSON.stringify({ payment_id: paymentId, reason }),
+  });
+}
+
+export function approveMarketplaceRefund(paymentId) {
+  return apiFetch(`/api/marketplace/payments/${paymentId}/refund/approve`, {
+    method: "POST",
+  });
 }

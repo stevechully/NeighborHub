@@ -182,9 +182,55 @@ router.post('/orders', requireAuth, async (req, res) => {
 });
 
 /**
- * GET /api/marketplace/orders
+ * GET /api/marketplace/my-orders
+ * Buyer fetches their orders merged with payment/refund status
+ */
+router.get("/my-orders", requireAuth, async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    // 1. Fetch orders for the current resident
+    const { data: orders, error: orderError } = await req.supabase
+      .from("marketplace_orders")
+      .select("*, marketplace_products(name, price)")
+      .eq("buyer_id", userId)
+      .order("created_at", { ascending: false });
+
+    if (orderError) return res.status(400).json({ error: orderError.message });
+
+    // 2. Fetch payments for this resident to find refund status
+    const { data: payments } = await req.supabase
+      .from("marketplace_payments")
+      .select("id, order_id, refund_status")
+      .eq("buyer_id", userId);
+
+    // 3. Manual merge to ensure frontend stability
+    const formatted = orders.map((o) => {
+      const payment = payments?.find((p) => p.order_id === o.id);
+      return {
+        ...o,
+        marketplace_payments: payment || null
+      };
+    });
+
+    res.json(formatted);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch orders" });
+  }
+});
+
+/**
+ * GET /api/marketplace/orders (Admin view of all)
  */
 router.get('/orders', requireAuth, async (req, res) => {
+  const { data: roleRow } = await req.supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", req.userId)
+    .single();
+
+  if (roleRow?.role !== "ADMIN") return res.status(403).json({ error: "Admin access required" });
+
   const { data, error } = await req.supabase
     .from('marketplace_orders')
     .select(`
@@ -299,25 +345,113 @@ router.post("/orders/:id/pay", requireAuth, async (req, res) => {
     .from("marketplace_payments")
     .insert({
       order_id: orderId,
-      buyer_id: req.userId, // ✅ Added buyer_id explicitly
+      buyer_id: req.userId,
       amount_paid: amountPaid,
       payment_method,
       transaction_ref: transactionRef,
       status: "SUCCESS",
       paid_at: new Date().toISOString(),
+      refund_status: 'NONE' 
     })
     .select()
     .single();
 
   if (payError) return res.status(400).json({ error: payError.message });
 
-  // Update order status
+  // Update both order status AND payment status
   await req.supabase
     .from("marketplace_orders")
-    .update({ payment_status: "PAID" })
+    .update({ 
+      payment_status: "PAID",
+      status: "PAID" 
+    })
     .eq("id", orderId);
 
   res.status(201).json({ success: true, transaction_ref: transactionRef, payment });
+});
+
+/**
+ * POST /api/marketplace/payments/:id/refund
+ * Resident requests a refund for a paid order
+ */
+router.post("/payments/:id/refund", requireAuth, async (req, res) => {
+  const paymentId = req.params.id;
+  const { reason } = req.body;
+
+  // 1. Check if payment exists and belongs to buyer
+  const { data: payment, error: payError } = await req.supabase
+    .from("marketplace_payments")
+    .select("*")
+    .eq("id", paymentId)
+    .single();
+
+  if (payError || !payment) return res.status(404).json({ error: "Payment not found" });
+  if (payment.buyer_id !== req.userId) return res.status(403).json({ error: "Not your payment" });
+  
+  // 2. Ensure it hasn't already been refunded or requested
+  if (payment.refund_status !== "NONE") {
+    return res.status(400).json({ error: "Refund already requested or processed" });
+  }
+
+  // 3. Update refund_status to REQUESTED
+  const { data, error } = await req.supabase
+    .from("marketplace_payments")
+    .update({ 
+      refund_status: "REQUESTED",
+    })
+    .eq("id", paymentId)
+    .select();
+
+  if (error) return res.status(400).json({ error: error.message });
+
+  // 🚨 Catch the silent failure if Row Level Security (RLS) blocks the update
+  if (!data || data.length === 0) {
+    return res.status(403).json({ 
+      error: "Database blocked the update! Please add an 'UPDATE' RLS policy for marketplace_payments in Supabase." 
+    });
+  }
+
+  res.json({ success: true, message: "Refund requested successfully", data: data[0] });
+});
+
+/**
+ * ✅ NEW: POST /api/marketplace/payments/:id/refund/approve
+ * Admin approves a refund request
+ */
+router.post("/payments/:id/refund/approve", requireAuth, async (req, res) => {
+  // 1. Verify Admin Role
+  const { data: roleRow } = await req.supabase
+    .from("user_roles")
+    .select("role")
+    .eq("user_id", req.userId)
+    .single();
+
+  if (roleRow?.role !== "ADMIN") return res.status(403).json({ error: "Admin access required" });
+
+  const paymentId = req.params.id;
+
+  // 2. Update payment to REFUNDED
+  const { data: payment, error: payError } = await req.supabase
+    .from("marketplace_payments")
+    .update({ refund_status: "REFUNDED" })
+    .eq("id", paymentId)
+    .select()
+    .single();
+
+  if (payError) return res.status(400).json({ error: payError.message });
+
+  // 3. Update the associated order to REFUNDED
+  if (payment?.order_id) {
+    await req.supabase
+      .from("marketplace_orders")
+      .update({ 
+        payment_status: "REFUNDED", 
+        status: "REFUNDED" 
+      })
+      .eq("id", payment.order_id);
+  }
+
+  res.json({ success: true, message: "Refund approved", payment });
 });
 
 export default router;

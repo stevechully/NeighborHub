@@ -130,6 +130,41 @@ router.get('/', requireAuth, async (req, res) => {
 });
 
 /**
+ * GET /api/facilities/my-bookings
+ * Resident-specific fetch with flattened payment data
+ */
+router.get("/my-bookings", requireAuth, async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    const { data, error } = await req.supabase
+      .from("facility_bookings")
+      .select(`
+        *,
+        facilities(name),
+        facility_payments(
+          id,
+          refund_status
+        )
+      `)
+      .eq("resident_id", userId)
+      .order("start_time", { ascending: false });
+
+    if (error) return res.status(400).json({ error: error.message });
+
+    // Flatten facility_payments from array to object for easier frontend use
+    const flattened = data.map(b => ({
+      ...b,
+      facility_payments: Array.isArray(b.facility_payments) ? b.facility_payments[0] : b.facility_payments
+    }));
+
+    res.json(flattened);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch your bookings" });
+  }
+});
+
+/**
  * GET /api/facilities/:id/bookings?date=YYYY-MM-DD
  */
 router.get("/:id/bookings", requireAuth, async (req, res) => {
@@ -275,20 +310,26 @@ router.post("/bookings/:id/pay", requireAuth, async (req, res) => {
 
 /**
  * GET /api/facilities/bookings
+ * Admin/General fetch of all bookings
  */
 router.get('/bookings', requireAuth, async (req, res) => {
   const { data, error } = await req.supabase
     .from('facility_bookings')
-    .select(`*, facilities ( name )`)
+    .select(`*, facilities ( name ), facility_payments(id, refund_status)`)
     .order('start_time', { ascending: false });
 
   if (error) return res.status(400).json({ error: error.message });
-  res.json(data);
+
+  const flattened = data.map(b => ({
+    ...b,
+    facility_payments: Array.isArray(b.facility_payments) ? b.facility_payments[0] : b.facility_payments
+  }));
+
+  res.json(flattened);
 });
 
 /**
  * PATCH /api/facilities/bookings/:id/cancel
- * Logic to allow Residents to cancel their own bookings & Admin to cancel any
  */
 router.patch("/bookings/:id/cancel", requireAuth, async (req, res) => {
   try {
@@ -311,12 +352,10 @@ router.patch("/bookings/:id/cancel", requireAuth, async (req, res) => {
 
     if (fetchError || !booking) return res.status(404).json({ error: "Booking not found" });
 
-    // Authorization check
     if (!isAdmin && booking.resident_id !== userId) {
       return res.status(403).json({ error: "Not authorized to cancel this booking" });
     }
 
-    // Prevent cancelling past bookings
     if (new Date(booking.start_time) < new Date()) {
       return res.status(400).json({ error: "Cannot cancel a past booking" });
     }
@@ -345,7 +384,6 @@ router.patch("/bookings/:id/cancel", requireAuth, async (req, res) => {
 
 /**
  * PATCH /api/facilities/bookings/:id
- * Admin specific approval/cancellation override
  */
 router.patch('/bookings/:id', requireAuth, async (req, res) => {
   const bookingId = req.params.id;

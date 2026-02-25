@@ -1,7 +1,7 @@
 import { apiFetch } from "./client";
 
 /**
- * GET worker bookings
+ * GET worker bookings (Standard)
  * - Resident/Worker: uses default RLS endpoint
  * - Admin: uses admin endpoint to bypass RLS
  */
@@ -18,6 +18,14 @@ export function fetchWorkerBookings(filters = {}, isAdmin = false) {
     : "/api/worker-services";
 
   return apiFetch(`${baseUrl}${params ? `?${params}` : ""}`);
+}
+
+/**
+ * ✅ GET /api/worker-services/my-bookings
+ * Resident-specific fetch that includes merged payment/refund data
+ */
+export function fetchMyWorkerBookings() {
+  return apiFetch("/api/worker-services/my-bookings");
 }
 
 /**
@@ -61,5 +69,16 @@ export function payForWorkerService(id, payload) {
   return apiFetch(`/api/worker-services/${id}/pay`, {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+/**
+ * ✅ POST /api/refunds/worker/request
+ * Resident requests a refund for a worker service payment
+ */
+export function requestWorkerRefund(paymentId, reason = "Service not needed") {
+  return apiFetch("/api/refunds/worker/request", {
+    method: "POST",
+    body: JSON.stringify({ payment_id: paymentId, reason }),
   });
 }

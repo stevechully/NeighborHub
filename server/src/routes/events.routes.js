@@ -81,52 +81,76 @@ router.get('/', requireAuth, async (_req, res) => {
 
 /**
  * GET /api/events/my
- * Fetch events current user has registered for
+ * Fetch events current user registered for (SAFE VERSION)
+ * ✅ Merges registrations and payments manually to prevent nesting issues
  */
 router.get('/my', requireAuth, async (req, res) => {
-  const userId = req.userId;
+  try {
+    const userId = req.userId;
 
-  const { data, error } = await req.supabase
-    .from('event_registrations')
-    .select(`
-      id,
-      payment_status,
-      status,
-      events (
+    // 1️⃣ Fetch registrations with event details
+    const { data: registrations, error: regError } = await req.supabase
+      .from('event_registrations')
+      .select(`
         id,
-        title,
-        event_date,
-        location,
-        is_paid,
-        fee
-      )
-    `)
-    .eq('user_id', userId);
+        status,
+        payment_status,
+        event_id,
+        events (
+          id,
+          title,
+          event_date,
+          location,
+          is_paid,
+          fee
+        )
+      `)
+      .eq('user_id', userId);
 
-  if (error) {
-    return res.status(400).json({ error: error.message });
+    if (regError) throw regError;
+
+    if (!registrations || registrations.length === 0) {
+      return res.json([]);
+    }
+
+    // 2️⃣ Fetch all payments for this user to merge manually
+    const { data: payments } = await req.supabase
+      .from('event_payments')
+      .select('id, event_id, refund_status')
+      .eq('user_id', userId);
+
+    // 3️⃣ Merge payments into registrations
+    const formatted = registrations.map((reg) => {
+      const payment = payments?.find(
+        (p) => p.event_id === reg.event_id
+      );
+
+      return {
+        registration_id: reg.id,
+        status: reg.status,
+        payment_status: reg.payment_status,
+        ...reg.events,
+        event_payments: payment || null
+      };
+    });
+
+    res.json(formatted);
+
+  } catch (err) {
+    console.error("MY EVENTS ERROR:", err.message);
+    res.status(500).json({ error: err.message });
   }
-
-  const formatted = data.map((item) => ({
-    registration_id: item.id,
-    payment_status: item.payment_status,
-    status: item.status,
-    ...item.events
-  }));
-
-  res.json(formatted);
 });
 
 /**
  * PATCH /api/events/my/:registrationId/cancel
- * ✅ FINAL FIX: Resident cancels their own event registration
+ * Resident cancels their own event registration
  */
 router.patch("/my/:registrationId/cancel", requireAuth, async (req, res) => {
   try {
     const registrationId = req.params.registrationId;
     const userId = req.userId;
 
-    // 1. Fetch the registration to check ownership
     const { data: registration, error: fetchError } = await req.supabase
       .from("event_registrations")
       .select("*")
@@ -137,12 +161,10 @@ router.patch("/my/:registrationId/cancel", requireAuth, async (req, res) => {
       return res.status(404).json({ error: "Registration not found" });
     }
 
-    // 2. Authorization check: Ensure user owns this registration
     if (registration.user_id !== userId) {
       return res.status(403).json({ error: "Not allowed to cancel this registration" });
     }
 
-    // 3. Update status to CANCELLED
     const { error: updateError } = await req.supabase
       .from("event_registrations")
       .update({ status: "CANCELLED" })
@@ -158,7 +180,6 @@ router.patch("/my/:registrationId/cancel", requireAuth, async (req, res) => {
 
 /**
  * POST /api/events/:id/register
- * Resident registers for an event
  */
 router.post('/:id/register', requireAuth, async (req, res) => {
   const eventId = req.params.id;
@@ -223,12 +244,21 @@ router.post('/:id/pay', requireAuth, async (req, res) => {
 
   const transactionRef = `EVT-${Date.now()}`;
 
+  const { data: registration } = await req.supabase
+    .from('event_registrations')
+    .select('id')
+    .eq('event_id', eventId)
+    .eq('user_id', userId)
+    .single();
+
   await req.supabase.from('event_payments').insert({
     event_id: eventId,
     user_id: userId,
+    registration_id: registration?.id,
     amount_paid: event.fee,
     payment_method,
-    transaction_ref: transactionRef
+    transaction_ref: transactionRef,
+    refund_status: 'NONE'
   });
 
   await req.supabase
@@ -245,7 +275,6 @@ router.post('/:id/pay', requireAuth, async (req, res) => {
 
 /**
  * DELETE /api/events/:id
- * Admin deletes an event
  */
 router.delete('/:id', requireAuth, async (req, res) => {
   const eventId = req.params.id;

@@ -27,6 +27,8 @@ export default function Sidebar() {
       { label: "Events", to: "/events" },
       { label: "My Events", to: "/my-events" },
       { label: "Facilities", to: "/facilities" },
+      // ✅ Added Resident Specific Bookings Link
+      { label: "My Facility Bookings", to: "/facilities/my-bookings" },
       { label: "Maintenance", to: "/maintenance" },
       { label: "My Visitors & Parcels", to: "/my-parcels" },
       { label: "Marketplace", to: "/marketplace" }
@@ -55,8 +57,9 @@ export default function Sidebar() {
       { label: "Notices", to: "/notices" },
       { label: "Events", to: "/events" },
       { label: "Facilities", to: "/facilities" },
-      // ✅ Added Manage Facilities Link
       { label: "Manage Facilities", to: "/admin/facilities", highlight: true }, 
+      // ✅ Added Refund Management Link for Admins
+      { label: "Refund Management", to: "/admin/refunds", highlight: true },
       { label: "Maintenance", to: "/maintenance" },
       { label: "Gate Management", to: "/gate" },
       { label: "Marketplace", to: "/marketplace" },
@@ -79,7 +82,7 @@ export default function Sidebar() {
         </div>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 4, overflowY: "auto" }}>
         {links.map((item) => {
           const active = location.pathname === item.to;
 
@@ -113,7 +116,6 @@ export default function Sidebar() {
   );
 }
 
-// ✅ RESTORED STYLES OBJECT
 const styles = {
   sidebar: {
     width: 260,

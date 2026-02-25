@@ -1,27 +1,36 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react"; // ✅ Added useCallback
 import { useAuth } from "../../auth/AuthContext";
+import { useLocation } from "react-router-dom"; 
 import {
   fetchFacilityBookings,
+  fetchMyFacilityBookings,
   updateFacilityBookingStatus,
-  cancelFacilityBooking, // ✅ Added this
+  cancelFacilityBooking,
   payForFacilityBooking,
+  requestFacilityRefund,
 } from "../../api/facilities.api";
 
 export default function FacilityBookingsPage() {
   const { profile, loading: authLoading } = useAuth();
+  const location = useLocation();
 
   const roleName =
     profile?.roles?.name || profile?.role || profile?.user_roles?.role || null;
 
   const isAdmin = roleName === "ADMIN";
+  const isMyBookingsPage = location.pathname.includes("my-bookings");
 
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  async function loadBookings() {
+  // ✅ Wrapped in useCallback to fix the ESLint dependency warning
+  const loadBookings = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await fetchFacilityBookings();
+      const data = (isAdmin && !isMyBookingsPage)
+        ? await fetchFacilityBookings()
+        : await fetchMyFacilityBookings();
+      
       setBookings(data || []);
     } catch (err) {
       console.log("❌ Facility bookings fetch failed:", err.message);
@@ -29,22 +38,19 @@ export default function FacilityBookingsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [isAdmin, isMyBookingsPage]); 
 
   useEffect(() => {
     if (!authLoading && profile) {
       loadBookings();
     }
-    // eslint-disable-next-line
-  }, [authLoading, profile]);
+  }, [authLoading, profile, loadBookings]); // ✅ loadBookings is now a stable dependency
 
   async function handleUpdateStatus(id, status) {
     try {
       if (status === "CANCELLED") {
-        // ✅ Call the ownership-aware cancel route
         await cancelFacilityBooking(id);
       } else {
-        // Use standard update for Admin approvals
         await updateFacilityBookingStatus(id, status);
       }
       alert(`Booking ${status} ✅`);
@@ -67,6 +73,19 @@ export default function FacilityBookingsPage() {
     }
   }
 
+  async function handleRefundRequest(paymentId) {
+    const reason = window.prompt("Reason for refund?", "Change of plans");
+    if (!reason) return;
+
+    try {
+      await requestFacilityRefund(paymentId, reason);
+      alert("Refund request submitted! 🟡");
+      await loadBookings();
+    } catch (err) {
+      alert(err.message || "Refund request failed");
+    }
+  }
+
   if (authLoading || !profile) {
     return (
       <div style={{ padding: 40, textAlign: "center" }}>
@@ -77,7 +96,7 @@ export default function FacilityBookingsPage() {
 
   return (
     <div style={{ padding: 20 }}>
-      <h2>Facility Bookings</h2>
+      <h2>{isMyBookingsPage ? "My Facility Bookings" : "Facility Bookings Management"}</h2>
 
       <button onClick={loadBookings} style={{ marginBottom: 16 }}>
         Refresh
@@ -109,7 +128,7 @@ export default function FacilityBookingsPage() {
                   <strong 
                     style={{ 
                       color: b.status === 'RESERVED' ? '#e67e22' : 
-                             b.status === 'CONFIRMED' ? '#27ae60' : 'inherit' 
+                             ['CONFIRMED', 'APPROVED'].includes(b.status) ? '#27ae60' : '#777' 
                     }}
                   >
                     {b.status}
@@ -119,13 +138,23 @@ export default function FacilityBookingsPage() {
                       Expires: {new Date(b.expires_at).toLocaleTimeString()}
                     </div>
                   )}
+                  {b.facility_payments?.refund_status === "REQUESTED" && (
+                    <div style={{ fontSize: '0.75rem', color: '#f39c12', marginTop: 4 }}>
+                      🟡 Refund Requested
+                    </div>
+                  )}
+                  {b.facility_payments?.refund_status === "REFUNDED" && (
+                    <div style={{ fontSize: '0.75rem', color: '#27ae60', marginTop: 4 }}>
+                      🟢 Refunded
+                    </div>
+                  )}
                 </td>
 
                 <td>
-                  {isAdmin ? (
+                  {isAdmin && !isMyBookingsPage ? (
                     <div style={{ display: "flex", gap: 10 }}>
                       <button
-                        disabled={!["PENDING", "CONFIRMED"].includes(b.status)}
+                        disabled={!["RESERVED", "CONFIRMED"].includes(b.status)}
                         onClick={() => handleUpdateStatus(b.id, "APPROVED")}
                         style={{ backgroundColor: b.status === "CONFIRMED" ? "#d4edda" : "" }}
                       >
@@ -140,7 +169,7 @@ export default function FacilityBookingsPage() {
                       </button>
                     </div>
                   ) : (
-                    <div style={{ display: "flex", gap: 10 }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
                       {b.status === "RESERVED" && (
                         <button 
                           onClick={() => handlePayment(b.id)}
@@ -150,11 +179,24 @@ export default function FacilityBookingsPage() {
                         </button>
                       )}
                       
-                      {b.status !== "CANCELLED" && b.status !== "EXPIRED" && b.status !== "APPROVED" ? (
+                      {["CONFIRMED", "APPROVED"].includes(b.status) && 
+                       (!b.facility_payments || b.facility_payments.refund_status === "NONE") && (
+                        <button 
+                          onClick={() => b.facility_payments ? handleRefundRequest(b.facility_payments.id) : alert("No payment found")}
+                          style={{ backgroundColor: "#f39c12", color: "white", border: "none", padding: "5px 10px", borderRadius: "4px", cursor: "pointer" }}
+                        >
+                          Request Refund
+                        </button>
+                      )}
+
+                      {["RESERVED", "CONFIRMED", "APPROVED"].includes(b.status) && 
+                       (!b.facility_payments || b.facility_payments.refund_status === "NONE") ? (
                         <button onClick={() => handleUpdateStatus(b.id, "CANCELLED")}>
                           Cancel
                         </button>
                       ) : (
+                        (!b.facility_payments || b.facility_payments.refund_status === "NONE") && 
+                        !["RESERVED", "CONFIRMED", "APPROVED"].includes(b.status) && 
                         <span style={{ color: "#777" }}>No actions</span>
                       )}
                     </div>

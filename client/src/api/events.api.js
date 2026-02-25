@@ -34,3 +34,14 @@ export function deleteEvent(eventId) {
     method: "DELETE",
   });
 }
+
+/**
+ * ✅ NEW: POST /api/refunds/event/request
+ * Resident requests a refund for an event
+ */
+export function requestEventRefund(paymentId, reason = "Resident request") {
+  return apiFetch("/api/refunds/event/request", {
+    method: "POST",
+    body: JSON.stringify({ payment_id: paymentId, reason }),
+  });
+}

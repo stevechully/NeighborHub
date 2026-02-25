@@ -53,9 +53,18 @@ export function bookFacility(facilityId, payload) {
 
 /**
  * GET /api/facilities/bookings
+ * Admin/General fetch of all bookings
  */
 export function fetchFacilityBookings() {
   return apiFetch("/api/facilities/bookings");
+}
+
+/**
+ * ✅ NEW: GET /api/facilities/my-bookings
+ * Resident-specific booking fetch
+ */
+export function fetchMyFacilityBookings() {
+  return apiFetch("/api/facilities/my-bookings");
 }
 
 /**
@@ -86,6 +95,17 @@ export function payForFacilityBooking(bookingId, payment_method) {
   return apiFetch(`/api/facilities/bookings/${bookingId}/pay`, {
     method: "POST",
     body: JSON.stringify({ payment_method }),
+  });
+}
+
+/**
+ * ✅ NEW: POST /api/refunds/facility/request
+ * Resident requests a refund for a specific payment
+ */
+export function requestFacilityRefund(paymentId, reason = "Resident request") {
+  return apiFetch("/api/refunds/facility/request", {
+    method: "POST",
+    body: JSON.stringify({ payment_id: paymentId, reason }),
   });
 }
 

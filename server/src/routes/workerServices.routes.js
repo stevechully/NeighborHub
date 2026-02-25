@@ -5,6 +5,19 @@ import { supabaseAdmin } from '../config/supabase.js';
 const router = express.Router();
 
 /**
+ * Helper: check if user is ADMIN
+ */
+async function isAdmin(supabase, userId) {
+  const { data } = await supabase
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', userId)
+    .single();
+
+  return data?.role === 'ADMIN';
+}
+
+/**
  * POST /api/worker-services
  * Resident creates a service request
  */
@@ -35,7 +48,7 @@ router.post('/', requireAuth, async (req, res) => {
 
 /**
  * GET /api/worker-services
- * Fetch service requests (RLS enforced)
+ * Fetch service requests (General list)
  */
 router.get('/', requireAuth, async (req, res) => {
   const { status } = req.query;
@@ -56,6 +69,47 @@ router.get('/', requireAuth, async (req, res) => {
 });
 
 /**
+ * ✅ GET /api/worker-services/my-bookings
+ * Resident fetches their bookings merged with payment/refund status
+ * Uses manual merge for maximum stability
+ */
+router.get("/my-bookings", requireAuth, async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    // 1. Fetch bookings belonging to this resident
+    const { data: bookings, error: bookingError } = await req.supabase
+      .from("worker_bookings")
+      .select("*, workers:worker_id(full_name)")
+      .eq("resident_id", userId)
+      .order("created_at", { ascending: false });
+
+    if (bookingError) throw bookingError;
+
+    // 2. Fetch payments for this resident to merge
+    const { data: payments, error: paymentError } = await req.supabase
+      .from("worker_payments")
+      .select("id, booking_id, refund_status, amount_paid")
+      .eq("resident_id", userId);
+
+    if (paymentError) throw paymentError;
+
+    // 3. Manual merge: Attach payment object to the correct booking
+    const formatted = bookings.map((b) => {
+      const payment = payments?.find((p) => p.booking_id === b.id);
+      return {
+        ...b,
+        worker_payments: payment || null
+      };
+    });
+
+    res.json(formatted);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch your worker bookings" });
+  }
+});
+
+/**
  * POST /api/worker-services/:id/pay
  * Resident pays for a completed service
  */
@@ -64,7 +118,6 @@ router.post('/:id/pay', requireAuth, async (req, res) => {
   const userId = req.userId;
   const { payment_method } = req.body;
 
-  // 1. Fetch the booking
   const { data: booking, error: fetchError } = await req.supabase
     .from('worker_bookings')
     .select('*')
@@ -75,23 +128,18 @@ router.post('/:id/pay', requireAuth, async (req, res) => {
     return res.status(404).json({ error: 'Service booking not found' });
   }
 
-  // 2. Authorization check
   if (booking.resident_id !== userId) {
     return res.status(403).json({ error: 'Not authorized to pay for this service' });
   }
 
-  // 3. Status check
   if (booking.status !== 'COMPLETED') {
     return res.status(400).json({ error: 'Service must be completed before payment' });
   }
 
   const transactionRef = `WS-${Date.now()}`;
-  
-  // Handle amount fallback if the column is missing or empty in worker_bookings
   const finalAmount = booking.amount || 500; 
 
-  // 4. Create payment record
-  // ✅ CHANGED: service_request_id -> booking_id
+  // Create payment record and initialize refund_status
   const { error: paymentError } = await supabaseAdmin
     .from('worker_payments')
     .insert({
@@ -99,14 +147,14 @@ router.post('/:id/pay', requireAuth, async (req, res) => {
       resident_id: userId,
       amount_paid: finalAmount,
       payment_method,
-      transaction_ref: transactionRef
+      transaction_ref: transactionRef,
+      refund_status: 'NONE' 
     });
 
   if (paymentError) {
     return res.status(400).json({ error: paymentError.message });
   }
 
-  // 5. Update booking status to PAID
   const { data, error: updateError } = await req.supabase
     .from('worker_bookings')
     .update({ status: 'PAID' })
@@ -132,17 +180,7 @@ router.post('/:id/pay', requireAuth, async (req, res) => {
 router.get('/admin/all', requireAuth, async (req, res) => {
   const { status } = req.query;
 
-  const { data: roleRow, error: roleError } = await req.supabase
-    .from('user_roles')
-    .select('role')
-    .eq('user_id', req.userId)
-    .single();
-
-  if (roleError) {
-    return res.status(400).json({ error: roleError.message });
-  }
-
-  if (roleRow?.role !== 'ADMIN') {
+  if (!(await isAdmin(req.supabase, req.userId))) {
     return res.status(403).json({ error: 'Admin access required' });
   }
 
@@ -173,13 +211,7 @@ router.patch('/:id/assign', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'worker_id is required' });
   }
 
-  const { data: roleRow } = await req.supabase
-    .from('user_roles')
-    .select('role')
-    .eq('user_id', req.userId)
-    .single();
-
-  if (roleRow?.role !== 'ADMIN') {
+  if (!(await isAdmin(req.supabase, req.userId))) {
     return res.status(403).json({ error: 'Admin access required' });
   }
 
@@ -232,7 +264,7 @@ router.patch('/:id/assign', requireAuth, async (req, res) => {
 
 /**
  * PATCH /api/worker-services/:id/status
- * Worker updates status
+ * Worker updates booking status
  */
 router.patch('/:id/status', requireAuth, async (req, res) => {
   const bookingId = req.params.id;
@@ -299,8 +331,8 @@ router.patch('/:id/cancel', requireAuth, async (req, res) => {
     return res.status(403).json({ error: 'Not allowed to cancel this request' });
   }
 
-  if (booking.status === 'COMPLETED') {
-    return res.status(400).json({ error: 'Completed service cannot be cancelled' });
+  if (booking.status === 'COMPLETED' || booking.status === 'PAID') {
+    return res.status(400).json({ error: 'Finalized service cannot be cancelled directly' });
   }
 
   const { data, error } = await req.supabase

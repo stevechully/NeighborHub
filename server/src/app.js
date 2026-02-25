@@ -14,6 +14,8 @@ import paymentsRoutes from './routes/payments.routes.js';
 import adminWorkersRoutes from "./routes/admin.workers.routes.js";
 import authRoutes from "./routes/auth.routes.js";
 import marketplaceSellersRoutes from "./routes/marketplaceSellers.routes.js";
+import refundsRoutes from "./routes/refunds.routes.js";
+
 
 
 const app = express();
@@ -44,7 +46,7 @@ app.use('/api/payments', paymentsRoutes);
 app.use("/api/admin", adminWorkersRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/marketplace", marketplaceSellersRoutes);
-
+app.use("/api/refunds", refundsRoutes);
 
 export default app;
 

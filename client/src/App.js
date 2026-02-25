@@ -21,6 +21,7 @@ import NoticesPage from "./pages/notices/NoticesPage";
 import EventsPage from "./pages/events/EventsPage";
 import FacilitiesPage from "./pages/facilities/FacilitiesPage";
 import FacilityBookingsPage from "./pages/facilities/FacilityBookingsPage";
+import AdminRefunds from "./pages/admin/AdminRefunds"; // Import the new Refund page
 
 import './App.css';
 
@@ -44,9 +45,15 @@ function App() {
           {/* Events & Facilities Sub-pages */}
           <Route path="/my-events" element={<RequireAuth><PageLayout><MyEvents /></PageLayout></RequireAuth>} />
           <Route path="/facilities" element={<RequireAuth><PageLayout><FacilitiesPage /></PageLayout></RequireAuth>} />
+          
+          {/* Booking Routes */}
           <Route path="/facilities/bookings" element={<RequireAuth><PageLayout><FacilityBookingsPage /></PageLayout></RequireAuth>} />
+          <Route path="/facilities/my-bookings" element={<RequireAuth><PageLayout><FacilityBookingsPage /></PageLayout></RequireAuth>} />
           <Route path="/facilities/:id" element={<RequireAuth><PageLayout><FacilityDetails /></PageLayout></RequireAuth>} />
+          
+          {/* Admin Specific Routes */}
           <Route path="/admin/facilities" element={<RequireAuth><PageLayout><AdminFacilities /></PageLayout></RequireAuth>} />
+          <Route path="/admin/refunds" element={<RequireAuth><PageLayout><AdminRefunds /></PageLayout></RequireAuth>} />
 
           <Route path="/maintenance" element={<RequireAuth><PageLayout><MaintenancePage /></PageLayout></RequireAuth>} />
           <Route path="/gate" element={<RequireAuth><PageLayout><GateManagementPage /></PageLayout></RequireAuth>} />
@@ -54,7 +61,7 @@ function App() {
           <Route path="/marketplace" element={<RequireAuth><PageLayout><MarketplacePage /></PageLayout></RequireAuth>} />
           <Route path="/marketplace/sellers" element={<RequireAuth><PageLayout><MarketplaceSellersAdminPage /></PageLayout></RequireAuth>} />
           
-          {/* Receipt Pages (If they need sidebar, keep PageLayout. If they are full-page printable, remove PageLayout) */}
+          {/* Receipt Pages */}
           <Route path="/payments/:id/receipt" element={<RequireAuth><PageLayout><ReceiptPage /></PageLayout></RequireAuth>} />
           <Route path="/marketplace/payments/:id/receipt" element={<RequireAuth><PageLayout><MarketplaceReceiptPage /></PageLayout></RequireAuth>} />
 

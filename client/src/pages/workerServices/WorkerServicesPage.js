@@ -3,9 +3,11 @@ import { useAuth } from "../../auth/AuthContext";
 import {
   createWorkerBooking,
   fetchWorkerBookings,
+  fetchMyWorkerBookings, // ✅ Added for safe resident fetching
   updateWorkerBookingStatus,
   assignWorkerToBooking,
-  payForWorkerService, // Ensure this is exported from your workerServices.api.js
+  payForWorkerService,
+  requestWorkerRefund, // ✅ Added for refund handling
 } from "../../api/workerServices.api";
 import { fetchWorkers } from "../../api/admin.api";
 
@@ -13,7 +15,7 @@ export default function WorkerServicesPage() {
   const { profile, loading: authLoading } = useAuth();
 
   const [bookings, setBookings] = useState([]);
-  const [dataLoading, setDataLoading] = useState(true); 
+  const [dataLoading, setDataLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
 
   const [serviceCategory, setServiceCategory] = useState("PLUMBER");
@@ -24,7 +26,7 @@ export default function WorkerServicesPage() {
 
   const [workers, setWorkers] = useState([]);
   const [selectedWorker, setSelectedWorker] = useState({});
-  const [paymentMethod, setPaymentMethod] = useState({}); // Tracking method per booking
+  const [paymentMethod, setPaymentMethod] = useState({});
   const [actionLoadingId, setActionLoadingId] = useState(null);
 
   // Role Detection
@@ -43,17 +45,18 @@ export default function WorkerServicesPage() {
   const loadBookings = useCallback(async () => {
     try {
       setDataLoading(true);
-      const data = await fetchWorkerBookings(
-        { status: statusFilter || undefined },
-        isAdmin
-      );
+      // ✅ Residents use the new manual merge API; Admins use the global one
+      const data = isResident 
+        ? await fetchMyWorkerBookings() 
+        : await fetchWorkerBookings({ status: statusFilter || undefined }, isAdmin);
+      
       setBookings(data || []);
     } catch (err) {
       console.log("❌ Worker bookings fetch failed:", err.message);
     } finally {
       setDataLoading(false);
     }
-  }, [statusFilter, isAdmin]);
+  }, [statusFilter, isAdmin, isResident]);
 
   const loadWorkers = useCallback(async () => {
     if (!isAdmin) return;
@@ -133,6 +136,23 @@ export default function WorkerServicesPage() {
     }
   }
 
+  // ✅ NEW: Handle Refund Request
+  async function handleRefundRequest(paymentId) {
+    const reason = window.prompt("Reason for refund?", "Service not required");
+    if (!reason) return;
+
+    setActionLoadingId(paymentId);
+    try {
+      await requestWorkerRefund(paymentId, reason);
+      alert("Refund request submitted! 🟡");
+      await loadBookings();
+    } catch (err) {
+      alert(err.message || "Refund request failed");
+    } finally {
+      setActionLoadingId(null);
+    }
+  }
+
   if (authLoading || !profile) {
     return (
       <div style={{ padding: 40, textAlign: "center" }}>
@@ -198,8 +218,17 @@ export default function WorkerServicesPage() {
                   <tr key={b.id} style={{ borderBottom: "1px solid #eee" }}>
                     <td>{b.service_category}</td>
                     <td>{b.description}</td>
-                    <td><strong className={`status-${bookingStatus.toLowerCase()}`}>{b.status}</strong></td>
-                    <td>{b.worker_id || "-"}</td>
+                    <td>
+                        <strong className={`status-${bookingStatus.toLowerCase()}`}>{b.status}</strong>
+                        {/* ✅ Refund Status Display */}
+                        {b.worker_payments?.refund_status === "REQUESTED" && (
+                            <div style={{ color: "#f39c12", fontSize: "0.8rem" }}>🟡 Refund Requested</div>
+                        )}
+                        {b.worker_payments?.refund_status === "REFUNDED" && (
+                            <div style={{ color: "#28a745", fontSize: "0.8rem" }}>🟢 Refunded</div>
+                        )}
+                    </td>
+                    <td>{b.worker_id || b.workers?.full_name || "-"}</td>
                     <td>
                       {/* ADMIN: Assign Worker */}
                       {isAdmin && bookingStatus === "REQUESTED" && (
@@ -229,23 +258,38 @@ export default function WorkerServicesPage() {
                         </button>
                       )}
 
-                      {/* RESIDENT: Payment */}
-                      {isResident && bookingStatus === "COMPLETED" && (
-                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                          <select 
-                            value={paymentMethod[b.id] || "UPI"} 
-                            onChange={(e) => setPaymentMethod(prev => ({ ...prev, [b.id]: e.target.value }))}
-                          >
-                            {paymentOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                          </select>
-                          <button 
-                            className="btn success" 
-                            style={{ background: "#28a745", color: "white" }}
-                            onClick={() => handlePayment(b.id)}
-                            disabled={actionLoadingId === b.id}
-                          >
-                            {actionLoadingId === b.id ? "Processing..." : `Pay ₹${b.amount || 0}`}
-                          </button>
+                      {/* RESIDENT: Payment & Refund */}
+                      {isResident && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                          {bookingStatus === "COMPLETED" && (
+                            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                              <select 
+                                value={paymentMethod[b.id] || "UPI"} 
+                                onChange={(e) => setPaymentMethod(prev => ({ ...prev, [b.id]: e.target.value }))}
+                              >
+                                {paymentOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                              </select>
+                              <button 
+                                className="btn success" 
+                                style={{ background: "#28a745", color: "white" }}
+                                onClick={() => handlePayment(b.id)}
+                                disabled={actionLoadingId === b.id}
+                              >
+                                {actionLoadingId === b.id ? "Processing..." : `Pay ₹${b.amount || 500}`}
+                              </button>
+                            </div>
+                          )}
+
+                          {/* ✅ NEW: Refund Button logic */}
+                          {bookingStatus === "PAID" && b.worker_payments?.refund_status === "NONE" && (
+                            <button
+                              style={{ background: "#f39c12", color: "white", border: "none", padding: "6px 12px", borderRadius: "4px", cursor: "pointer" }}
+                              onClick={() => handleRefundRequest(b.worker_payments.id)}
+                              disabled={actionLoadingId === b.worker_payments.id}
+                            >
+                              {actionLoadingId === b.worker_payments.id ? "Submitting..." : "Request Refund"}
+                            </button>
+                          )}
                         </div>
                       )}
 
