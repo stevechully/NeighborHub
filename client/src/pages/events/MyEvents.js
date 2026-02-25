@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { supabase } from "../../lib/supabase"; // ✅ Import supabase client
+import { supabase } from "../../lib/supabase";
 
 const MyEvents = () => {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const BACKEND_URL = "http://localhost:4000/api"; // Updated for consistency
 
   useEffect(() => {
     fetchMyEvents();
@@ -12,30 +14,39 @@ const MyEvents = () => {
 
   const fetchMyEvents = async () => {
     try {
-      // ✅ 1. Get the session directly from Supabase
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
       if (sessionError) throw sessionError;
-
-      // ✅ 2. Extract the access token
       const token = session?.access_token;
 
-      // ✅ 3. Execute the request with the fresh token
       const res = await axios.get(
-        "http://localhost:4000/api/events/my",
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
+        `${BACKEND_URL}/events/my`,
+        { headers: { Authorization: `Bearer ${token}` } }
       );
-
-      console.log("My Events Response:", res.data);
       setEvents(res.data);
     } catch (err) {
       console.error("Error fetching my events:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const cancelRegistration = async (registrationId) => {
+    if (!window.confirm("Are you sure you want to cancel this registration?")) return;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      await axios.patch(
+        `${BACKEND_URL}/events/my/${registrationId}/cancel`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      alert("Registration cancelled successfully ✅");
+      fetchMyEvents(); // Refresh the list
+    } catch (err) {
+      alert(err.response?.data?.error || "Cancellation failed");
     }
   };
 
@@ -59,10 +70,16 @@ const MyEvents = () => {
                 padding: "20px",
                 borderRadius: "12px",
                 background: "#fff",
-                boxShadow: "0 2px 4px rgba(0,0,0,0.05)"
+                boxShadow: "0 2px 4px rgba(0,0,0,0.05)",
+                opacity: item.status === "CANCELLED" ? 0.6 : 1
               }}
             >
-              <h3 style={{ margin: "0 0 10px 0", color: "#1e40af" }}>{item.title}</h3>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start" }}>
+                <h3 style={{ margin: "0 0 10px 0", color: "#1e40af" }}>{item.title}</h3>
+                {item.status === "CANCELLED" && (
+                   <span style={{ color: "red", fontWeight: "bold" }}>CANCELLED</span>
+                )}
+              </div>
               
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", fontSize: "14px" }}>
                 <p><strong>📅 Date:</strong> {new Date(item.event_date).toLocaleString()}</p>
@@ -85,6 +102,24 @@ const MyEvents = () => {
                 
                 <p><strong>🛠 Method:</strong> {item.payment_method || "Pending"}</p>
               </div>
+
+              {item.status !== "CANCELLED" && (
+                <button
+                  onClick={() => cancelRegistration(item.registration_id)}
+                  style={{
+                    marginTop: "15px",
+                    padding: "8px 16px",
+                    backgroundColor: "#ef4444",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px",
+                    cursor: "pointer",
+                    fontWeight: "600"
+                  }}
+                >
+                  Cancel Registration
+                </button>
+              )}
             </div>
           ))}
         </div>

@@ -3,6 +3,8 @@ import { useAuth } from "../../auth/AuthContext";
 import {
   fetchFacilityBookings,
   updateFacilityBookingStatus,
+  cancelFacilityBooking, // ✅ Added this
+  payForFacilityBooking,
 } from "../../api/facilities.api";
 
 export default function FacilityBookingsPage() {
@@ -38,11 +40,30 @@ export default function FacilityBookingsPage() {
 
   async function handleUpdateStatus(id, status) {
     try {
-      await updateFacilityBookingStatus(id, status);
+      if (status === "CANCELLED") {
+        // ✅ Call the ownership-aware cancel route
+        await cancelFacilityBooking(id);
+      } else {
+        // Use standard update for Admin approvals
+        await updateFacilityBookingStatus(id, status);
+      }
       alert(`Booking ${status} ✅`);
       await loadBookings();
     } catch (err) {
       alert(err.message);
+    }
+  }
+
+  async function handlePayment(id) {
+    const method = window.prompt("Enter payment method (e.g., Credit Card, Cash):", "Credit Card");
+    if (!method) return;
+
+    try {
+      await payForFacilityBooking(id, method);
+      alert("Payment successful! Booking Confirmed.");
+      await loadBookings();
+    } catch (err) {
+      alert("Payment failed: " + err.message);
     }
   }
 
@@ -85,28 +106,58 @@ export default function FacilityBookingsPage() {
                 <td>{new Date(b.start_time).toLocaleString()}</td>
                 <td>{new Date(b.end_time).toLocaleString()}</td>
                 <td>
-                  <strong>{b.status}</strong>
+                  <strong 
+                    style={{ 
+                      color: b.status === 'RESERVED' ? '#e67e22' : 
+                             b.status === 'CONFIRMED' ? '#27ae60' : 'inherit' 
+                    }}
+                  >
+                    {b.status}
+                  </strong>
+                  {b.status === "RESERVED" && b.expires_at && (
+                    <div style={{ fontSize: '0.8rem', color: '#e74c3c' }}>
+                      Expires: {new Date(b.expires_at).toLocaleTimeString()}
+                    </div>
+                  )}
                 </td>
 
                 <td>
                   {isAdmin ? (
                     <div style={{ display: "flex", gap: 10 }}>
                       <button
-                        disabled={b.status !== "PENDING"}
+                        disabled={!["PENDING", "CONFIRMED"].includes(b.status)}
                         onClick={() => handleUpdateStatus(b.id, "APPROVED")}
+                        style={{ backgroundColor: b.status === "CONFIRMED" ? "#d4edda" : "" }}
                       >
                         Approve
                       </button>
 
                       <button
-                        disabled={b.status === "CANCELLED"}
+                        disabled={["CANCELLED", "EXPIRED"].includes(b.status)}
                         onClick={() => handleUpdateStatus(b.id, "CANCELLED")}
                       >
                         Cancel
                       </button>
                     </div>
                   ) : (
-                    <span style={{ color: "#777" }}>No actions</span>
+                    <div style={{ display: "flex", gap: 10 }}>
+                      {b.status === "RESERVED" && (
+                        <button 
+                          onClick={() => handlePayment(b.id)}
+                          style={{ backgroundColor: "#2ecc71", color: "white", border: "none", padding: "5px 10px", borderRadius: "4px", cursor: "pointer" }}
+                        >
+                          Pay Now
+                        </button>
+                      )}
+                      
+                      {b.status !== "CANCELLED" && b.status !== "EXPIRED" && b.status !== "APPROVED" ? (
+                        <button onClick={() => handleUpdateStatus(b.id, "CANCELLED")}>
+                          Cancel
+                        </button>
+                      ) : (
+                        <span style={{ color: "#777" }}>No actions</span>
+                      )}
+                    </div>
                   )}
                 </td>
               </tr>

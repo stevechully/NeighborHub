@@ -25,7 +25,7 @@ export default function Sidebar() {
       { label: "Worker Services", to: "/worker-services" },
       { label: "Notices", to: "/notices" },
       { label: "Events", to: "/events" },
-      { label: "My Events", to: "/my-events" }, // ✅ Added My Events Link
+      { label: "My Events", to: "/my-events" },
       { label: "Facilities", to: "/facilities" },
       { label: "Maintenance", to: "/maintenance" },
       { label: "My Visitors & Parcels", to: "/my-parcels" },
@@ -55,6 +55,8 @@ export default function Sidebar() {
       { label: "Notices", to: "/notices" },
       { label: "Events", to: "/events" },
       { label: "Facilities", to: "/facilities" },
+      // ✅ Added Manage Facilities Link
+      { label: "Manage Facilities", to: "/admin/facilities", highlight: true }, 
       { label: "Maintenance", to: "/maintenance" },
       { label: "Gate Management", to: "/gate" },
       { label: "Marketplace", to: "/marketplace" },
@@ -111,6 +113,7 @@ export default function Sidebar() {
   );
 }
 
+// ✅ RESTORED STYLES OBJECT
 const styles = {
   sidebar: {
     width: 260,

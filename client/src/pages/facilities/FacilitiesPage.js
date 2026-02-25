@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
-import { fetchFacilities, bookFacility } from "../../api/facilities.api";
+import { fetchFacilities } from "../../api/facilities.api";
 
 export default function FacilitiesPage() {
   const navigate = useNavigate();
@@ -14,9 +14,6 @@ export default function FacilitiesPage() {
 
   const [facilities, setFacilities] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // booking form values per facility
-  const [bookingForm, setBookingForm] = useState({});
 
   async function loadFacilities() {
     try {
@@ -38,50 +35,6 @@ export default function FacilitiesPage() {
     // eslint-disable-next-line
   }, [authLoading, profile]);
 
-  function handleChange(facilityId, field, value) {
-    setBookingForm((prev) => ({
-      ...prev,
-      [facilityId]: {
-        ...prev[facilityId],
-        [field]: value,
-      },
-    }));
-  }
-
-  async function handleBook(facilityId) {
-    const start_time = bookingForm?.[facilityId]?.start_time;
-    const end_time = bookingForm?.[facilityId]?.end_time;
-
-    if (!start_time || !end_time) {
-      alert("Please select start and end time");
-      return;
-    }
-
-    const startISO = new Date(start_time).toISOString();
-    const endISO = new Date(end_time).toISOString();
-
-    if (new Date(endISO) <= new Date(startISO)) {
-      alert("End time must be after start time");
-      return;
-    }
-
-    try {
-      await bookFacility(facilityId, {
-        start_time: startISO,
-        end_time: endISO,
-      });
-
-      alert("Facility booking request created ✅ (PENDING)");
-
-      setBookingForm((prev) => ({
-        ...prev,
-        [facilityId]: { start_time: "", end_time: "" },
-      }));
-    } catch (err) {
-      alert(err.message);
-    }
-  }
-
   if (authLoading || !profile) {
     return (
       <div style={{ padding: 40, textAlign: "center" }}>
@@ -92,11 +45,14 @@ export default function FacilitiesPage() {
 
   return (
     <div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h2>Facilities</h2>
 
-        <button onClick={() => navigate("/facilities/bookings")}>
-          View Bookings
+        <button 
+          onClick={() => navigate("/facilities/bookings")}
+          style={{ padding: "8px 16px", cursor: "pointer" }}
+        >
+          My Bookings
         </button>
       </div>
 
@@ -122,105 +78,49 @@ export default function FacilitiesPage() {
                 padding: 16,
                 boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
                 border: "1px solid #eee",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between"
               }}
             >
-              <h3 style={{ marginTop: 0 }}>{f.name}</h3>
+              <div>
+                <h3 style={{ marginTop: 0 }}>{f.name}</h3>
 
-              <p style={{ color: "#555", minHeight: 40 }}>
-                {f.description || "No description"}
-              </p>
+                <p style={{ color: "#555", minHeight: 40 }}>
+                  {f.description || "No description"}
+                </p>
 
-              <div style={{ fontSize: 14, color: "#666", marginBottom: 10 }}>
-                <div>
-                  <strong>Capacity:</strong> {f.capacity ?? "N/A"}
-                </div>
-                <div>
-                  <strong>Open:</strong> {f.open_time} → {f.close_time}
-                </div>
-                <div>
-                  <strong>Paid:</strong> {f.is_paid ? "Yes" : "No"}
-                </div>
-                {f.is_paid && (
-                  <div>
-                    <strong>Fee:</strong> ₹{f.fee}
-                  </div>
-                )}
-                <div>
-                  <strong>Approval Required:</strong>{" "}
-                  {f.approval_required ? "Yes" : "No"}
+                <div style={{ fontSize: 14, color: "#666", marginBottom: 10 }}>
+                  <div><strong>Capacity:</strong> {f.capacity ?? "N/A"}</div>
+                  <div><strong>Open:</strong> {f.open_time} → {f.close_time}</div>
+                  <div><strong>Paid:</strong> {f.is_paid ? "Yes" : "No"}</div>
+                  {f.is_paid && <div><strong>Fee:</strong> ₹{f.fee}</div>}
                 </div>
               </div>
 
-              {isResident ? (
-                <div
-                  style={{
-                    marginTop: 12,
-                    paddingTop: 12,
-                    borderTop: "1px solid #eee",
-                  }}
-                >
-                  <h4 style={{ margin: "0 0 10px 0" }}>Book Facility</h4>
-
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    <div>
-                      <label style={{ fontSize: 13 }}>Start Time</label>
-                      {/* ✅ FIX APPLIED HERE */}
-                      <input
-                        type="datetime-local"
-                        min={new Date().toISOString().slice(0, 16)}
-                        value={bookingForm?.[f.id]?.start_time || ""}
-                        onChange={(e) =>
-                          handleChange(f.id, "start_time", e.target.value)
-                        }
-                        style={{
-                          width: "100%",
-                          padding: 10,
-                          borderRadius: 8,
-                          border: "1px solid #ddd",
-                        }}
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ fontSize: 13 }}>End Time</label>
-                      {/* ✅ FIX APPLIED HERE */}
-                      <input
-                        type="datetime-local"
-                        min={new Date().toISOString().slice(0, 16)}
-                        value={bookingForm?.[f.id]?.end_time || ""}
-                        onChange={(e) =>
-                          handleChange(f.id, "end_time", e.target.value)
-                        }
-                        style={{
-                          width: "100%",
-                          padding: 10,
-                          borderRadius: 8,
-                          border: "1px solid #ddd",
-                        }}
-                      />
-                    </div>
-
-                    <button
-                      onClick={() => handleBook(f.id)}
-                      style={{
-                        padding: 10,
-                        borderRadius: 8,
-                        border: "none",
-                        cursor: "pointer",
-                        background: "#111",
-                        color: "#fff",
-                        fontWeight: "600",
-                      }}
-                    >
-                      Book Now
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <p style={{ marginTop: 12, color: "#777", fontSize: 13 }}>
-                  Booking is available for residents only.
-                </p>
-              )}
+              <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #eee" }}>
+                {isResident ? (
+                  <button
+                    onClick={() => navigate(`/facilities/${f.id}`)}
+                    style={{
+                      width: "100%",
+                      padding: 12,
+                      borderRadius: 8,
+                      border: "none",
+                      cursor: "pointer",
+                      background: "#111",
+                      color: "#fff",
+                      fontWeight: "600",
+                    }}
+                  >
+                    View Availability & Book
+                  </button>
+                ) : (
+                  <p style={{ color: "#777", fontSize: 13, textAlign: "center" }}>
+                    Residents only
+                  </p>
+                )}
+              </div>
             </div>
           ))}
         </div>

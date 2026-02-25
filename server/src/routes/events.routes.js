@@ -81,7 +81,7 @@ router.get('/', requireAuth, async (_req, res) => {
 
 /**
  * GET /api/events/my
- * ✅ NEW: Fetch events current user has registered for
+ * Fetch events current user has registered for
  */
 router.get('/my', requireAuth, async (req, res) => {
   const userId = req.userId;
@@ -91,6 +91,7 @@ router.get('/my', requireAuth, async (req, res) => {
     .select(`
       id,
       payment_status,
+      status,
       events (
         id,
         title,
@@ -106,14 +107,53 @@ router.get('/my', requireAuth, async (req, res) => {
     return res.status(400).json({ error: error.message });
   }
 
-  // Formatting for cleaner frontend consumption
   const formatted = data.map((item) => ({
     registration_id: item.id,
     payment_status: item.payment_status,
+    status: item.status,
     ...item.events
   }));
 
   res.json(formatted);
+});
+
+/**
+ * PATCH /api/events/my/:registrationId/cancel
+ * ✅ FINAL FIX: Resident cancels their own event registration
+ */
+router.patch("/my/:registrationId/cancel", requireAuth, async (req, res) => {
+  try {
+    const registrationId = req.params.registrationId;
+    const userId = req.userId;
+
+    // 1. Fetch the registration to check ownership
+    const { data: registration, error: fetchError } = await req.supabase
+      .from("event_registrations")
+      .select("*")
+      .eq("id", registrationId)
+      .single();
+
+    if (fetchError || !registration) {
+      return res.status(404).json({ error: "Registration not found" });
+    }
+
+    // 2. Authorization check: Ensure user owns this registration
+    if (registration.user_id !== userId) {
+      return res.status(403).json({ error: "Not allowed to cancel this registration" });
+    }
+
+    // 3. Update status to CANCELLED
+    const { error: updateError } = await req.supabase
+      .from("event_registrations")
+      .update({ status: "CANCELLED" })
+      .eq("id", registrationId);
+
+    if (updateError) throw updateError;
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 /**
@@ -152,7 +192,8 @@ router.post('/:id/register', requireAuth, async (req, res) => {
     .insert({
       event_id: eventId,
       user_id: userId,
-      payment_status: paymentStatus
+      payment_status: paymentStatus,
+      status: 'REGISTERED'
     })
     .select()
     .single();
@@ -164,7 +205,6 @@ router.post('/:id/register', requireAuth, async (req, res) => {
 
 /**
  * POST /api/events/:id/pay
- * Resident pays for a paid event
  */
 router.post('/:id/pay', requireAuth, async (req, res) => {
   const eventId = req.params.id;
