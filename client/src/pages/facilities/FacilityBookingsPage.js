@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react"; // ✅ Added useCallback
+import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { useLocation } from "react-router-dom"; 
 import {
@@ -9,6 +9,9 @@ import {
   payForFacilityBooking,
   requestFacilityRefund,
 } from "../../api/facilities.api";
+
+// ✅ Added Import
+import FacilityBookingCard from "../../components/facilities/FacilityBookingCard";
 
 export default function FacilityBookingsPage() {
   const { profile, loading: authLoading } = useAuth();
@@ -23,7 +26,6 @@ export default function FacilityBookingsPage() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // ✅ Wrapped in useCallback to fix the ESLint dependency warning
   const loadBookings = useCallback(async () => {
     try {
       setLoading(true);
@@ -44,7 +46,7 @@ export default function FacilityBookingsPage() {
     if (!authLoading && profile) {
       loadBookings();
     }
-  }, [authLoading, profile, loadBookings]); // ✅ loadBookings is now a stable dependency
+  }, [authLoading, profile, loadBookings]);
 
   async function handleUpdateStatus(id, status) {
     try {
@@ -88,125 +90,62 @@ export default function FacilityBookingsPage() {
 
   if (authLoading || !profile) {
     return (
-      <div style={{ padding: 40, textAlign: "center" }}>
-        <p>Verifying session...</p>
+      <div className="p-10 flex justify-center items-center">
+        <p className="text-slate-500 font-medium animate-pulse">Verifying session...</p>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: 20 }}>
-      <h2>{isMyBookingsPage ? "My Facility Bookings" : "Facility Bookings Management"}</h2>
+    <div className="max-w-7xl mx-auto p-6 space-y-6">
+      
+      {/* ✅ Improved Page Header */}
+      <div className="flex justify-between items-center mb-6 border-b border-slate-200 pb-4">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800">
+            {isMyBookingsPage ? "My Facility Bookings" : "Facility Bookings Management"}
+          </h2>
+          <p className="text-sm text-slate-500 mt-1">
+            {isMyBookingsPage ? "Manage your amenity reservations" : "Review and approve community reservations"}
+          </p>
+        </div>
 
-      <button onClick={loadBookings} style={{ marginBottom: 16 }}>
-        Refresh
-      </button>
+        <button
+          onClick={loadBookings}
+          className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
+        >
+          Refresh
+        </button>
+      </div>
 
-      {loading ? (
-        <p>Loading bookings...</p>
-      ) : bookings.length === 0 ? (
-        <p>No bookings found.</p>
-      ) : (
-        <table width="100%" cellPadding="10" style={{ borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ background: "#f3f3f3" }}>
-              <th align="left">Facility</th>
-              <th align="left">Start</th>
-              <th align="left">End</th>
-              <th align="left">Status</th>
-              <th align="left">Actions</th>
-            </tr>
-          </thead>
-
-          <tbody>
+      {/* ✅ Replaced Table With Cards */}
+      <div>
+        {loading ? (
+          <p className="text-slate-500 py-10 text-center">Loading bookings...</p>
+        ) : bookings.length === 0 ? (
+          <p className="text-slate-500 py-10 text-center bg-slate-50 rounded-xl border border-dashed border-slate-300">
+            No bookings found.
+          </p>
+        ) : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {bookings.map((b) => (
-              <tr key={b.id} style={{ borderBottom: "1px solid #eee" }}>
-                <td>{b.facilities?.name || b.facility_id}</td>
-                <td>{new Date(b.start_time).toLocaleString()}</td>
-                <td>{new Date(b.end_time).toLocaleString()}</td>
-                <td>
-                  <strong 
-                    style={{ 
-                      color: b.status === 'RESERVED' ? '#e67e22' : 
-                             ['CONFIRMED', 'APPROVED'].includes(b.status) ? '#27ae60' : '#777' 
-                    }}
-                  >
-                    {b.status}
-                  </strong>
-                  {b.status === "RESERVED" && b.expires_at && (
-                    <div style={{ fontSize: '0.8rem', color: '#e74c3c' }}>
-                      Expires: {new Date(b.expires_at).toLocaleTimeString()}
-                    </div>
-                  )}
-                  {b.facility_payments?.refund_status === "REQUESTED" && (
-                    <div style={{ fontSize: '0.75rem', color: '#f39c12', marginTop: 4 }}>
-                      🟡 Refund Requested
-                    </div>
-                  )}
-                  {b.facility_payments?.refund_status === "REFUNDED" && (
-                    <div style={{ fontSize: '0.75rem', color: '#27ae60', marginTop: 4 }}>
-                      🟢 Refunded
-                    </div>
-                  )}
-                </td>
-
-                <td>
-                  {isAdmin && !isMyBookingsPage ? (
-                    <div style={{ display: "flex", gap: 10 }}>
-                      <button
-                        disabled={!["RESERVED", "CONFIRMED"].includes(b.status)}
-                        onClick={() => handleUpdateStatus(b.id, "APPROVED")}
-                        style={{ backgroundColor: b.status === "CONFIRMED" ? "#d4edda" : "" }}
-                      >
-                        Approve
-                      </button>
-
-                      <button
-                        disabled={["CANCELLED", "EXPIRED"].includes(b.status)}
-                        onClick={() => handleUpdateStatus(b.id, "CANCELLED")}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  ) : (
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-                      {b.status === "RESERVED" && (
-                        <button 
-                          onClick={() => handlePayment(b.id)}
-                          style={{ backgroundColor: "#2ecc71", color: "white", border: "none", padding: "5px 10px", borderRadius: "4px", cursor: "pointer" }}
-                        >
-                          Pay Now
-                        </button>
-                      )}
-                      
-                      {["CONFIRMED", "APPROVED"].includes(b.status) && 
-                       (!b.facility_payments || b.facility_payments.refund_status === "NONE") && (
-                        <button 
-                          onClick={() => b.facility_payments ? handleRefundRequest(b.facility_payments.id) : alert("No payment found")}
-                          style={{ backgroundColor: "#f39c12", color: "white", border: "none", padding: "5px 10px", borderRadius: "4px", cursor: "pointer" }}
-                        >
-                          Request Refund
-                        </button>
-                      )}
-
-                      {["RESERVED", "CONFIRMED", "APPROVED"].includes(b.status) && 
-                       (!b.facility_payments || b.facility_payments.refund_status === "NONE") ? (
-                        <button onClick={() => handleUpdateStatus(b.id, "CANCELLED")}>
-                          Cancel
-                        </button>
-                      ) : (
-                        (!b.facility_payments || b.facility_payments.refund_status === "NONE") && 
-                        !["RESERVED", "CONFIRMED", "APPROVED"].includes(b.status) && 
-                        <span style={{ color: "#777" }}>No actions</span>
-                      )}
-                    </div>
-                  )}
-                </td>
-              </tr>
+              <FacilityBookingCard
+                key={b.id}
+                booking={b}
+                isAdmin={isAdmin}
+                isMyBookingsPage={isMyBookingsPage}
+                
+                // Passed down mapped actions in case your card expects these exact names
+                onCancel={() => handleUpdateStatus(b.id, "CANCELLED")}
+                onRefund={() => b.facility_payments ? handleRefundRequest(b.facility_payments.id) : alert("No payment found")}
+                onPay={() => handlePayment(b.id)}
+                onApprove={() => handleUpdateStatus(b.id, "APPROVED")}
+              />
             ))}
-          </tbody>
-        </table>
-      )}
+          </div>
+        )}
+      </div>
+
     </div>
   );
 }

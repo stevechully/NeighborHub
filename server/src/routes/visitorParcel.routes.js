@@ -84,13 +84,17 @@ router.patch('/visitors/:id/exit', requireAuth, async (req, res) => {
 /**
  * GET /api/visitors
  * Fetch visitors (RLS enforces visibility)
- * Resident → own records
- * Security/Admin → all records
+ * ✅ FIXED: Now joins the profiles table to get the resident's full name
  */
 router.get('/visitors', requireAuth, async (req, res) => {
   const { data, error } = await req.supabase
     .from('visitors')
-    .select('*')
+    .select(`
+      *,
+      profiles:resident_id (
+        full_name
+      )
+    `)
     .order('created_at', { ascending: false });
 
   if (error) {
@@ -181,13 +185,17 @@ router.patch('/parcels/:id/pickup', requireAuth, async (req, res) => {
 /**
  * GET /api/parcels
  * Fetch parcels (RLS enforces visibility)
- * Resident → own records
- * Security/Admin → all records
+ * ✅ FIXED: Now joins the profiles table to get the resident's full name
  */
 router.get('/parcels', requireAuth, async (req, res) => {
   const { data, error } = await req.supabase
     .from('parcels')
-    .select('*')
+    .select(`
+      *,
+      profiles:resident_id (
+        full_name
+      )
+    `)
     .order('received_at', { ascending: false });
 
   if (error) {
@@ -198,4 +206,3 @@ router.get('/parcels', requireAuth, async (req, res) => {
 });
 
 export default router;
-

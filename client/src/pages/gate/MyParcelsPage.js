@@ -3,6 +3,10 @@ import { useAuth } from "../../auth/AuthContext";
 import { fetchVisitors, fetchParcels } from "../../api/visitorParcel.api";
 import useParcelNotifications from "../../hooks/useParcelNotifications"; 
 
+// ✅ Added Card Imports
+import VisitorCard from "../../components/gate/VisitorCard";
+import ParcelCard from "../../components/gate/ParcelCard";
+
 export default function MyParcelsPage() {
   const { profile, loading: authLoading } = useAuth();
   const [visitors, setVisitors] = useState([]);
@@ -12,10 +16,7 @@ export default function MyParcelsPage() {
   const userId = profile?.id; 
   const roleName = profile?.roles?.name || profile?.role || profile?.user_roles?.role || null;
   const isResident = roleName === "RESIDENT";
-  console.log("🟢 MyParcelsPage Mounted");
-  console.log("🟢 userId for realtime:", userId)
 
-  // ✅ FIXED: Individual fetches with safe .catch() handlers
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
@@ -51,80 +52,86 @@ export default function MyParcelsPage() {
   }, [authLoading, profile, loadData]);
 
   if (authLoading || !profile) {
-    return <div style={{ padding: 40 }}>Verifying session...</div>;
+    return (
+      <div className="p-10 flex justify-center items-center">
+        <p className="text-slate-500 font-medium animate-pulse">Verifying session...</p>
+      </div>
+    );
   }
 
   if (!isResident) {
     return (
-      <div style={{ padding: 40, textAlign: 'center' }}>
-        <h3>🚫 Access Denied</h3>
-        <p>This page is for residents only.</p>
+      <div className="p-10 text-center">
+        <h3 className="text-xl font-bold text-red-600 mb-2">🚫 Access Denied</h3>
+        <p className="text-slate-600">This page is for residents only.</p>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: 20 }}>
-      <h2>My Parcels & Visitors</h2>
+    <div className="max-w-7xl mx-auto p-6 space-y-8">
       
+      {/* ✅ Improved Page Header */}
+      <div className="flex justify-between items-center mb-6 border-b border-slate-200 pb-4">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800">My Gate Activity</h2>
+          <p className="text-sm text-slate-500 mt-1">Track your visitors and incoming parcels</p>
+        </div>
+
+        <button
+          onClick={loadData}
+          className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
+        >
+          Refresh
+        </button>
+      </div>
+
       {/* VISITORS SECTION */}
-      <div style={cardStyle}>
-        <h3>My Visitors</h3>
-        {loading ? <p>Loading...</p> : visitors.length === 0 ? (
-          <p>No visitors found.</p>
+      <div>
+        <h2 className="text-xl font-bold text-slate-800 mb-4">
+          My Visitors
+        </h2>
+        {loading ? (
+          <p className="text-slate-500 py-10 text-center">Loading visitors...</p>
+        ) : visitors.length === 0 ? (
+          <p className="text-slate-500 py-10 text-center bg-slate-50 rounded-xl border border-dashed border-slate-300">
+            No visitors found.
+          </p>
         ) : (
-          <table width="100%" cellPadding="10" style={{ borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ background: "#f8f9fa", textAlign: "left" }}>
-                <th>Name</th><th>Purpose</th><th>Entry</th><th>Exit</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visitors.map(v => (
-                <tr key={v.id} style={{ borderBottom: "1px solid #eee" }}>
-                  <td>{v.visitor_name}</td>
-                  <td>{v.purpose}</td>
-                  <td>{new Date(v.entry_time).toLocaleString()}</td>
-                  <td>{v.exit_time ? new Date(v.exit_time).toLocaleString() : "Inside"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {visitors.map((v) => (
+              <VisitorCard
+                key={v.id}
+                visitor={v}
+              />
+            ))}
+          </div>
         )}
       </div>
 
       {/* PARCELS SECTION */}
-      <div style={cardStyle}>
-        <h3>My Parcels</h3>
-        {loading ? <p>Loading...</p> : parcels.length === 0 ? (
-          <p>No parcels found.</p>
+      <div>
+        <h2 className="text-xl font-bold text-slate-800 mb-4">
+          My Parcels
+        </h2>
+        {loading ? (
+          <p className="text-slate-500 py-10 text-center">Loading parcels...</p>
+        ) : parcels.length === 0 ? (
+          <p className="text-slate-500 py-10 text-center bg-slate-50 rounded-xl border border-dashed border-slate-300">
+            No parcels found.
+          </p>
         ) : (
-          <table width="100%" cellPadding="10" style={{ borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ background: "#f8f9fa", textAlign: "left" }}>
-                <th>Courier</th><th>Status</th><th>Received At</th>
-              </tr>
-            </thead>
-            <tbody>
-              {parcels.map(p => (
-                <tr key={p.id} style={{ borderBottom: "1px solid #eee" }}>
-                  <td>{p.courier_name} {p.tracking_number && `(${p.tracking_number})`}</td>
-                  <td><strong>{p.status}</strong></td>
-                  <td>{new Date(p.received_at).toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {parcels.map((p) => (
+              <ParcelCard
+                key={p.id}
+                parcel={p}
+              />
+            ))}
+          </div>
         )}
       </div>
+      
     </div>
   );
 }
-
-const cardStyle = {
-  background: "#fff",
-  padding: 20,
-  borderRadius: 8,
-  marginBottom: 20,
-  boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-};

@@ -3,6 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
 import { fetchFacilities } from "../../api/facilities.api";
 
+// ✅ New Component Import
+import FacilityCard from "../../components/facilities/FacilityCard";
+
 export default function FacilitiesPage() {
   const navigate = useNavigate();
   const { profile, loading: authLoading } = useAuth();
@@ -37,94 +40,55 @@ export default function FacilitiesPage() {
 
   if (authLoading || !profile) {
     return (
-      <div style={{ padding: 40, textAlign: "center" }}>
-        <p>Verifying session...</p>
+      <div className="p-10 flex justify-center items-center">
+        <p className="text-slate-500 font-medium animate-pulse">Verifying session...</p>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: 20 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h2>Facilities</h2>
+    <div className="max-w-7xl mx-auto space-y-6">
+      
+      {/* Page Header (Updated with Tailwind) */}
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800">Facilities</h2>
+          <p className="text-sm text-slate-500 mt-1">Book and manage community amenities</p>
+        </div>
 
         <button 
           onClick={() => navigate("/facilities/bookings")}
-          style={{ padding: "8px 16px", cursor: "pointer" }}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
         >
           My Bookings
         </button>
       </div>
 
-      {loading ? (
-        <p>Loading facilities...</p>
-      ) : facilities.length === 0 ? (
-        <p>No facilities available.</p>
-      ) : (
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-            gap: 16,
-            marginTop: 16,
-          }}
-        >
-          {facilities.map((f) => (
-            <div
-              key={f.id}
-              style={{
-                background: "#fff",
-                borderRadius: 12,
-                padding: 16,
-                boxShadow: "0 2px 10px rgba(0,0,0,0.06)",
-                border: "1px solid #eee",
-                display: "flex",
-                flexDirection: "column",
-                justifyContent: "space-between"
-              }}
-            >
-              <div>
-                <h3 style={{ marginTop: 0 }}>{f.name}</h3>
+      {/* Facilities Grid Container */}
+      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+        {loading ? (
+          <p className="text-slate-500 py-8 text-center">Loading facilities...</p>
+        ) : facilities.length === 0 ? (
+          <p className="text-slate-500 py-8 text-center bg-slate-50 rounded-xl border border-dashed border-slate-300">
+            No facilities available.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            
+            {/* ✅ Replaced inline HTML with the new FacilityCard */}
+            {facilities.map((f) => (
+              <FacilityCard 
+                key={f.id} 
+                facility={f} 
+                isResident={isResident} 
+                onBook={() => navigate(`/facilities/${f.id}`)}
+              />
+            ))}
+            
+          </div>
+        )}
+      </div>
 
-                <p style={{ color: "#555", minHeight: 40 }}>
-                  {f.description || "No description"}
-                </p>
-
-                <div style={{ fontSize: 14, color: "#666", marginBottom: 10 }}>
-                  <div><strong>Capacity:</strong> {f.capacity ?? "N/A"}</div>
-                  <div><strong>Open:</strong> {f.open_time} → {f.close_time}</div>
-                  <div><strong>Paid:</strong> {f.is_paid ? "Yes" : "No"}</div>
-                  {f.is_paid && <div><strong>Fee:</strong> ₹{f.fee}</div>}
-                </div>
-              </div>
-
-              <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #eee" }}>
-                {isResident ? (
-                  <button
-                    onClick={() => navigate(`/facilities/${f.id}`)}
-                    style={{
-                      width: "100%",
-                      padding: 12,
-                      borderRadius: 8,
-                      border: "none",
-                      cursor: "pointer",
-                      background: "#111",
-                      color: "#fff",
-                      fontWeight: "600",
-                    }}
-                  >
-                    View Availability & Book
-                  </button>
-                ) : (
-                  <p style={{ color: "#777", fontSize: 13, textAlign: "center" }}>
-                    Residents only
-                  </p>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

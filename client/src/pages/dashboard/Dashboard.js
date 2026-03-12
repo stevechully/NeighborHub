@@ -1,14 +1,45 @@
 import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 import { fetchComplaints } from "../../api/complaints.api";
 import { useAuth } from "../../auth/AuthContext";
+import { sidebarMenu } from "../../config/sidebarMenu"; // ✅ Import config
+
+// New UI Components
+import GreetingBanner from "../../components/dashboard/GreetingBanner";
+import NeedsAttention from "../../components/dashboard/NeedsAttention";
+import QuickAccessCard from "../../components/dashboard/QuickAccessCard";
+import ActivityFeed from "../../components/dashboard/ActivityFeed";
+
+// Icons
+import {
+  MessageSquare, Wrench, Package, ShoppingCart, Calendar, 
+  Building, ClipboardList, ShieldCheck, Wallet, Settings
+} from "lucide-react";
+
+// Helper to auto-assign icons for Dashboard Cards
+const getCardIcon = (path) => {
+  if (path.includes("notices")) return <ClipboardList className="w-5 h-5 text-indigo-600" />;
+  if (path.includes("complaints")) return <MessageSquare className="w-5 h-5 text-indigo-600" />;
+  if (path.includes("worker-services")) return <Wrench className="w-5 h-5 text-indigo-600" />;
+  if (path.includes("maintenance")) return <Settings className="w-5 h-5 text-indigo-600" />;
+  if (path.includes("events")) return <Calendar className="w-5 h-5 text-indigo-600" />;
+  if (path.includes("marketplace")) return <ShoppingCart className="w-5 h-5 text-indigo-600" />;
+  if (path.includes("facilities")) return <Building className="w-5 h-5 text-indigo-600" />;
+  if (path.includes("parcels")) return <Package className="w-5 h-5 text-indigo-600" />;
+  if (path.includes("gate")) return <ShieldCheck className="w-5 h-5 text-blue-600" />;
+  if (path.includes("refunds")) return <Wallet className="w-5 h-5 text-green-600" />;
+  return <MessageSquare className="w-5 h-5 text-indigo-600" />;
+};
 
 export default function Dashboard() {
   const { profile } = useAuth();
-  const navigate = useNavigate();
 
-  const roleName =
-    profile?.roles?.name || profile?.role || profile?.user_roles?.role || "USER";
+  // Role detection logic
+  const roleName = profile?.roles?.name || profile?.role || profile?.user_roles?.role || "RESIDENT";
+
+  // Fetch menu array and filter out the "Dashboard" link itself
+  const quickAccessItems = (sidebarMenu[roleName] || sidebarMenu.RESIDENT).filter(
+    (item) => item.path !== "/dashboard"
+  );
 
   useEffect(() => {
     async function test() {
@@ -22,93 +53,53 @@ export default function Dashboard() {
   }, []);
 
   return (
-    <div style={{ padding: 40, maxWidth: 1200, margin: "0 auto" }}>
+    <div className="space-y-6 max-w-7xl mx-auto">
       
-      {/* Header */}
-      <div style={{ marginBottom: 40 }}>
-        <h1 style={{
-          fontSize: 28,
-          fontWeight: 600,
-          marginBottom: 6
-        }}>
-          Welcome back, {profile?.full_name || "User"}
-        </h1>
+      {/* 1. Greeting & Hero Section */}
+      <GreetingBanner 
+        user={profile?.full_name || "Resident"} 
+        role={roleName} 
+      />
 
-        <p style={{
-          color: "#6b7280",
-          fontSize: 14
-        }}>
-          {roleName} Dashboard
-        </p>
-      </div>
+      {/* 2. Important Notifications / Alerts */}
+      <NeedsAttention />
 
-      {/* Quick Access Section */}
+      {/* 3. Dynamic Quick Access Grid */}
       <div>
-        <h2 style={{
-          fontSize: 16,
-          fontWeight: 600,
-          marginBottom: 20,
-          color: "#374151"
-        }}>
+        <h3 className="text-lg font-bold mb-4 text-slate-800 px-1">
           Quick Access
-        </h2>
+        </h3>
 
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-          gap: 20,
-        }}>
-          <DashboardCard title="Complaints" onClick={() => navigate("/complaints")} />
-          <DashboardCard title="Maintenance" onClick={() => navigate("/maintenance")} />
-          <DashboardCard title="Parcels" onClick={() => navigate("/my-parcels")} />
-          <DashboardCard title="Marketplace" onClick={() => navigate("/marketplace")} />
-          <DashboardCard title="Worker Services" onClick={() => navigate("/worker-services")} />
-          <DashboardCard title="Facilities" onClick={() => navigate("/facilities")} />
-          <DashboardCard title="Events" onClick={() => navigate("/events")} />
-          <DashboardCard title="Notices" onClick={() => navigate("/notices")} />
-
-          {(roleName === "SECURITY" || roleName === "ADMIN") && (
-            <DashboardCard title="Gate Management" onClick={() => navigate("/gate")} />
-          )}
-
-          {roleName === "ADMIN" && (
-            <DashboardCard
-              title="Seller Approvals"
-              onClick={() => navigate("/marketplace/sellers")}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {/* ✅ Dynamically mapped from sidebarMenu.js */}
+          {quickAccessItems.map((item) => (
+            <QuickAccessCard
+              key={item.path}
+              title={item.name}
+              icon={getCardIcon(item.path)}
+              link={item.path}
             />
-          )}
+          ))}
         </div>
       </div>
-    </div>
-  );
-}
 
-/* Clean Modern Card */
-function DashboardCard({ title, onClick }) {
-  return (
-    <div
-      onClick={onClick}
-      style={{
-        background: "#ffffff",
-        padding: "22px 20px",
-        borderRadius: 12,
-        border: "1px solid #e5e7eb",
-        cursor: "pointer",
-        transition: "all 0.15s ease",
-        boxShadow: "0 2px 6px rgba(0,0,0,0.04)",
-        fontWeight: 500,
-        fontSize: 15,
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = "translateY(-3px)";
-        e.currentTarget.style.boxShadow = "0 10px 25px rgba(0,0,0,0.08)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = "translateY(0)";
-        e.currentTarget.style.boxShadow = "0 2px 6px rgba(0,0,0,0.04)";
-      }}
-    >
-      {title}
+      {/* 4. Detailed Insights Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <ActivityFeed />
+
+        <div className="bg-white border border-slate-200 rounded-xl p-6 shadow-sm">
+          <h3 className="font-semibold mb-4 text-slate-800">
+            Upcoming Events
+          </h3>
+          <div className="flex flex-col items-center justify-center py-10 text-center">
+            <Calendar className="w-12 h-12 text-slate-200 mb-3" />
+            <p className="text-sm text-slate-500">
+              No community events scheduled for this week.
+            </p>
+          </div>
+        </div>
+      </div>
+      
     </div>
   );
 }

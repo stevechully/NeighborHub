@@ -8,12 +8,15 @@ import {
 } from "../../api/complaints.api";
 import { fetchWorkers } from "../../api/admin.api";
 import { useAuth } from "../../auth/AuthContext";
-import "./complaints.css";
+
+// Component Imports
+import ComplaintCard from "../../components/complaints/ComplaintCard";
+import RaiseComplaintModal from "../../components/complaints/RaiseComplaintModal";
 
 export default function ComplaintsPage() {
   const { profile } = useAuth();
   
-  const roleName = profile?.roles?.name || profile?.role || null;
+  const roleName = profile?.roles?.name || profile?.role || profile?.user_roles?.role || "USER";
   const isAdmin = roleName === "ADMIN";
   const isWorker = roleName === "WORKER";
 
@@ -26,10 +29,13 @@ export default function ComplaintsPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
 
+  // Modal State
+  const [modalOpen, setModalOpen] = useState(false);
+
+  // Form states (Synced with Modal)
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState("LOW");
-  const [formLoading, setFormLoading] = useState(false);
   const [error, setError] = useState("");
 
   const loadComplaints = useCallback(async () => {
@@ -60,12 +66,13 @@ export default function ComplaintsPage() {
         const data = await fetchWorkers();
         setWorkers(data);
       } catch (err) {
-        console.log("❌ workers fetch failed:", err.message);
+        console.log("❌ Workers fetch failed:", err.message);
       }
     }
     loadWorkersIfAdmin();
   }, [isAdmin]);
 
+  // Handler: Admin assigns worker
   async function handleAssignWorker(complaintId) {
     const worker_id = selectedWorker[complaintId];
     if (!worker_id) {
@@ -83,6 +90,7 @@ export default function ComplaintsPage() {
     }
   }
 
+  // Handler: Worker updates progress
   async function handleWorkerStatusUpdate(complaintId, nextStatus) {
     setActionLoadingId(complaintId);
     try {
@@ -95,6 +103,7 @@ export default function ComplaintsPage() {
     }
   }
 
+  // Handler: Admin closes complaint
   async function handleCloseComplaint(complaintId) {
     setActionLoadingId(complaintId);
     try {
@@ -107,153 +116,173 @@ export default function ComplaintsPage() {
     }
   }
 
-  async function handleCreateComplaint(e) {
-    e.preventDefault();
-    if (!category || !description) {
+  // Handler: Resident raises new complaint
+  async function handleCreateComplaint(e, modalData = null) {
+    if (e && e.preventDefault) e.preventDefault();
+    
+    const cat = modalData?.category || category;
+    const desc = modalData?.description || description;
+    const pri = modalData?.priority || priority;
+
+    if (!cat || !desc) {
       setError("Please fill all fields");
       return;
     }
-    setFormLoading(true);
+    
     try {
-      await createComplaint({ category, description, priority });
+      await createComplaint({ category: cat, description: desc, priority: pri });
       setCategory("");
       setDescription("");
       setPriority("LOW");
+      setModalOpen(false);
       await loadComplaints();
     } catch (err) {
-      setError(err.message || "Failed to create");
-    } finally {
-      setFormLoading(false);
+      setError(err.message || "Failed to create complaint");
     }
   }
 
   return (
-    <div className="complaints-page">
-      <div className="page-header">
-        <h2>Complaints ({roleName})</h2>
-        <button className="btn" onClick={loadComplaints}>Refresh</button>
-      </div>
+    <div className="max-w-[1600px] mx-auto p-6 space-y-6">
+      
+      {/* 1. Page Header */}
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
+            Complaint Board 
+            <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2.5 py-1 rounded-lg uppercase tracking-wider border border-indigo-100">
+              {roleName}
+            </span>
+          </h2>
+          <p className="text-sm text-slate-500 mt-1">Track and manage community service requests</p>
+        </div>
 
-      {error && <div className="error-box">{error}</div>}
-
-      <div className="card">
-        <h3>Create New Complaint</h3>
-        <form className="complaint-form" onSubmit={handleCreateComplaint}>
-          <div className="form-row">
-            <div className="form-field">
-              <label>Category</label>
-              <input type="text" value={category} onChange={(e) => setCategory(e.target.value)} />
-            </div>
-            <div className="form-field">
-              <label>Priority</label>
-              <select value={priority} onChange={(e) => setPriority(e.target.value)}>
-                <option value="LOW">LOW</option>
-                <option value="MEDIUM">MEDIUM</option>
-                <option value="HIGH">HIGH</option>
-                <option value="CRITICAL">CRITICAL</option>
-              </select>
-            </div>
-          </div>
-          <div className="form-field">
-            <label>Description</label>
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
-          </div>
-          <button className="btn primary" type="submit" disabled={formLoading}>
-            {formLoading ? "Submitting..." : "Submit Complaint"}
+        <div className="flex gap-3">
+          <button 
+            onClick={loadComplaints}
+            className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
+          >
+            Refresh Board
           </button>
-        </form>
-      </div>
-
-      <div className="card">
-        <h3>Filters</h3>
-        <div className="filters" style={{ display: "flex", gap: "20px" }}>
-          <div className="form-field">
-            <label>Status</label>
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <option value="">All Statuses</option>
-              <option value="NEW">NEW</option>
-              <option value="ASSIGNED">ASSIGNED</option>
-              <option value="IN_PROGRESS">IN_PROGRESS</option>
-              <option value="RESOLVED">RESOLVED</option>
-              <option value="CLOSED">CLOSED</option>
-            </select>
-          </div>
-          <div className="form-field">
-            <label>Priority</label>
-            <select value={priorityFilter} onChange={(e) => setPriorityFilter(e.target.value)}>
-              <option value="">All Priorities</option>
-              <option value="LOW">LOW</option>
-              <option value="MEDIUM">MEDIUM</option>
-              <option value="HIGH">HIGH</option>
-              <option value="CRITICAL">CRITICAL</option>
-            </select>
-          </div>
+          
+          <button
+            onClick={() => setModalOpen(true)}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg font-bold transition-all shadow-md active:scale-95"
+          >
+            + Raise Complaint
+          </button>
         </div>
       </div>
 
-      <div className="card">
-        <h3>Complaint List</h3>
-        {loading ? <p>Loading...</p> : (
-          <table className="complaints-table">
-            <thead>
-              <tr>
-                {/* ✅ Added "Raised By" and "Description" Headers */}
-                <th>Raised By</th>
-                <th>Category</th>
-                <th>Description</th>
-                <th>Priority</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {complaints.map((c) => (
-                <tr key={c.id}>
-                  {/* ✅ Displays full name from the joined 'profiles' object */}
-                  <td>{c.profiles?.full_name || c.resident_id}</td>
-                  <td>{c.category}</td>
-                  <td>{c.description}</td>
-                  <td><span className={`badge priority-${c.priority}`}>{c.priority}</span></td>
-                  <td><span className={`badge status-${c.status}`}>{c.status}</span></td>
-                  <td>
-                    {isAdmin && c.status === "NEW" && (
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <select
-                          value={selectedWorker[c.id] || ""}
-                          onChange={(e) => setSelectedWorker(prev => ({ ...prev, [c.id]: e.target.value }))}
-                        >
-                          <option value="">Select Worker</option>
-                          {workers.map(w => <option key={w.id} value={w.id}>{w.full_name}</option>)}
-                        </select>
-                        <button className="btn" onClick={() => handleAssignWorker(c.id)} disabled={actionLoadingId === c.id}>
-                          {actionLoadingId === c.id ? "..." : "Assign"}
-                        </button>
-                      </div>
-                    )}
-                    
-                    {isAdmin && c.status === "RESOLVED" && (
-                      <button className="btn" onClick={() => handleCloseComplaint(c.id)} disabled={actionLoadingId === c.id}>
-                        Close
-                      </button>
-                    )}
+      {error && (
+        <div className="bg-red-50 text-red-600 p-4 rounded-xl border border-red-100 font-medium animate-in fade-in slide-in-from-top-2">
+          {error}
+        </div>
+      )}
 
-                    {isWorker && c.status === "ASSIGNED" && (
-                      <button className="btn" onClick={() => handleWorkerStatusUpdate(c.id, "IN_PROGRESS")} disabled={actionLoadingId === c.id}>
-                        Start
-                      </button>
-                    )}
-                    {isWorker && c.status === "IN_PROGRESS" && (
-                      <button className="btn" onClick={() => handleWorkerStatusUpdate(c.id, "RESOLVED")} disabled={actionLoadingId === c.id}>
-                        Resolve
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+      {/* 2. Advanced Filters */}
+      <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-6">
+        <div className="flex-1">
+          <div className="flex justify-between items-center mb-1.5 px-0.5">
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-tight">Status Column</label>
+            {(statusFilter || priorityFilter) && (
+              <button
+                onClick={() => { setStatusFilter(""); setPriorityFilter(""); }}
+                className="text-xs text-indigo-600 hover:text-indigo-800 font-bold underline decoration-indigo-200"
+              >
+                Clear All
+              </button>
+            )}
+          </div>
+          <select 
+            value={statusFilter} 
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="w-full border border-slate-200 bg-slate-50 rounded-xl p-2.5 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium text-slate-700 cursor-pointer"
+          >
+            <option value="">All Statuses</option>
+            <option value="NEW">NEW</option>
+            <option value="ASSIGNED">ASSIGNED</option>
+            <option value="IN_PROGRESS">IN_PROGRESS</option>
+            <option value="RESOLVED">RESOLVED</option>
+            <option value="CLOSED">CLOSED</option>
+          </select>
+        </div>
+        
+        <div className="flex-1">
+          <label className="block text-xs font-bold text-slate-500 uppercase tracking-tight mb-1.5 px-0.5">Priority Level</label>
+          <select 
+            value={priorityFilter} 
+            onChange={(e) => setPriorityFilter(e.target.value)}
+            className="w-full border border-slate-200 bg-slate-50 rounded-xl p-2.5 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium text-slate-700 cursor-pointer"
+          >
+            <option value="">All Priorities</option>
+            <option value="LOW">LOW</option>
+            <option value="MEDIUM">MEDIUM</option>
+            <option value="HIGH">HIGH</option>
+            <option value="CRITICAL">CRITICAL</option>
+          </select>
+        </div>
       </div>
+
+      {/* 3. Kanban Board Grid */}
+      
+      {loading ? (
+        <div className="py-20 flex flex-col items-center justify-center space-y-4">
+          <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-slate-500 font-medium italic">Building the board...</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-start">
+          {["NEW", "ASSIGNED", "IN_PROGRESS", "RESOLVED"].map((status) => (
+            <div key={status} className="bg-slate-50/50 rounded-2xl p-4 border border-slate-200/60 min-h-[600px] flex flex-col">
+              
+              {/* Column Header */}
+              <div className="flex items-center justify-between mb-5 px-1">
+                <h3 className="font-bold text-slate-700 text-xs tracking-widest uppercase">
+                  {status.replace("_", " ")}
+                </h3>
+                <span className="bg-white text-slate-500 text-[11px] font-black px-2.5 py-0.5 rounded-full border border-slate-200 shadow-sm">
+                  {complaints.filter((c) => c.status === status).length}
+                </span>
+              </div>
+
+              {/* Card Container */}
+              <div className="space-y-4 flex-1">
+                {complaints
+                  .filter((c) => c.status === status)
+                  .map((c) => (
+                    <ComplaintCard
+                      key={c.id}
+                      complaint={c}
+                      isAdmin={isAdmin}
+                      isWorker={isWorker}
+                      workers={workers}
+                      selectedWorker={selectedWorker}
+                      setSelectedWorker={setSelectedWorker}
+                      handleAssignWorker={handleAssignWorker}
+                      handleWorkerStatusUpdate={handleWorkerStatusUpdate}
+                      handleCloseComplaint={handleCloseComplaint}
+                      actionLoadingId={actionLoadingId}
+                    />
+                  ))}
+                
+                {/* Column Empty State */}
+                {complaints.filter((c) => c.status === status).length === 0 && (
+                  <div className="h-24 flex items-center justify-center border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 text-[11px] font-medium italic bg-white/30 px-4 text-center">
+                    No active {status.toLowerCase().replace("_", " ")} requests
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 4. Hidden Components */}
+      <RaiseComplaintModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onSubmit={handleCreateComplaint}
+      />
     </div>
   );
 }

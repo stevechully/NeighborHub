@@ -3,13 +3,17 @@ import { useAuth } from "../../auth/AuthContext";
 import {
   createWorkerBooking,
   fetchWorkerBookings,
-  fetchMyWorkerBookings, // ✅ Added for safe resident fetching
+  fetchMyWorkerBookings,
   updateWorkerBookingStatus,
   assignWorkerToBooking,
   payForWorkerService,
-  requestWorkerRefund, // ✅ Added for refund handling
+  requestWorkerRefund,
 } from "../../api/workerServices.api";
 import { fetchWorkers } from "../../api/admin.api";
+
+// ✅ Component Imports
+import ServiceCard from "../../components/workerServices/ServiceCard";
+import ServiceRequestModal from "../../components/workerServices/ServiceRequestModal";
 
 export default function WorkerServicesPage() {
   const { profile, loading: authLoading } = useAuth();
@@ -18,10 +22,8 @@ export default function WorkerServicesPage() {
   const [dataLoading, setDataLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
 
-  const [serviceCategory, setServiceCategory] = useState("PLUMBER");
-  const [description, setDescription] = useState("");
-  const [preferredDate, setPreferredDate] = useState("");
-  const [preferredTime, setPreferredTime] = useState("");
+  // ✅ Add modal state
+  const [modalOpen, setModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const [workers, setWorkers] = useState([]);
@@ -45,7 +47,6 @@ export default function WorkerServicesPage() {
   const loadBookings = useCallback(async () => {
     try {
       setDataLoading(true);
-      // ✅ Residents use the new manual merge API; Admins use the global one
       const data = isResident 
         ? await fetchMyWorkerBookings() 
         : await fetchWorkerBookings({ status: statusFilter || undefined }, isAdmin);
@@ -82,24 +83,37 @@ export default function WorkerServicesPage() {
 
   // --- Handlers ---
 
-  async function handleCreateBooking(e) {
-    e.preventDefault();
-    if (!description || !preferredDate || !preferredTime) {
+  async function handleCreateBooking(e, modalData = null) {
+    if (e && e.preventDefault) e.preventDefault();
+    
+    // Fallback to modalData if the modal passes state up directly
+    const category = modalData?.serviceCategory;
+    const desc = modalData?.description;
+    const prefDate = modalData?.preferredDate;
+    const prefTime = modalData?.preferredTime;
+
+    if (!desc || !prefDate || !prefTime) {
       alert("Please fill all booking details");
       return;
     }
+
     try {
       setSubmitting(true);
       await createWorkerBooking({
-        service_category: serviceCategory,
-        description,
-        preferred_date: preferredDate,
-        preferred_time: preferredTime,
+        service_category: category,
+        description: desc,
+        preferred_date: prefDate,
+        preferred_time: prefTime,
       });
-      setDescription(""); setPreferredDate(""); setPreferredTime("");
+      
+      setModalOpen(false); // Close modal on success
       await loadBookings();
       alert("Booking created successfully ✅");
-    } catch (err) { alert(err.message); } finally { setSubmitting(false); }
+    } catch (err) { 
+      alert(err.message); 
+    } finally { 
+      setSubmitting(false); 
+    }
   }
 
   async function handleWorkerStatusUpdate(bookingId, status) {
@@ -136,7 +150,6 @@ export default function WorkerServicesPage() {
     }
   }
 
-  // ✅ NEW: Handle Refund Request
   async function handleRefundRequest(paymentId) {
     const reason = window.prompt("Reason for refund?", "Service not required");
     if (!reason) return;
@@ -155,159 +168,101 @@ export default function WorkerServicesPage() {
 
   if (authLoading || !profile) {
     return (
-      <div style={{ padding: 40, textAlign: "center" }}>
-        <p>Verifying session, please wait...</p>
+      <div className="p-10 flex justify-center items-center">
+        <p className="text-slate-500 font-medium animate-pulse">Verifying session, please wait...</p>
       </div>
     );
   }
 
   return (
-    <div className="worker-services-container" style={{ padding: "20px" }}>
-      <h2>Worker Services</h2>
-      <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-          <option value="">All Status</option>
+    <div className="max-w-7xl mx-auto p-6 space-y-6">
+      
+      {/* ✅ Add Request Button & Modern Header */}
+      <div className="flex justify-between items-center mb-6 border-b border-slate-200 pb-4">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800">Worker Services</h2>
+          <p className="text-sm text-slate-500 mt-1">Book plumbers, electricians, and more</p>
+        </div>
+
+        <div className="flex gap-3">
+          <button 
+            onClick={loadBookings}
+            className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
+          >
+            Refresh
+          </button>
+          
+          {isResident && (
+            <button
+              onClick={() => setModalOpen(true)}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
+            >
+              + Request Service
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Modern Filter Section */}
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+        <label className="text-sm font-medium text-slate-600">Filter Status:</label>
+        <select 
+          value={statusFilter} 
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="border border-slate-300 rounded-lg p-2 outline-none focus:ring-2 focus:ring-indigo-500 text-sm min-w-[200px]"
+        >
+          <option value="">All Statuses</option>
           {statusOptions.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
-        <button onClick={loadBookings}>Refresh</button>
       </div>
 
-      {isResident && (
-        <div style={{ background: "#fff", padding: 16, borderRadius: 8, marginBottom: 16, boxShadow: "0 2px 4px rgba(0,0,0,0.1)" }}>
-          <h3>Create a Booking</h3>
-          <form onSubmit={handleCreateBooking}>
-             <select value={serviceCategory} onChange={(e) => setServiceCategory(e.target.value)}>
-                <option value="PLUMBER">Plumber</option>
-                <option value="ELECTRICIAN">Electrician</option>
-                <option value="CLEANER">Cleaner</option>
-                <option value="CABLE_OPERATOR">Cable Operator</option>
-              </select>
-              <textarea 
-                rows={3} value={description} 
-                onChange={(e) => setDescription(e.target.value)} 
-                placeholder="Describe issue..." style={{ width: "100%", margin: "10px 0", padding: "8px" }} 
+      {/* ✅ Replace Table With Cards */}
+      <div>
+        {dataLoading ? (
+          <p className="text-slate-500 py-10 text-center">Loading services...</p>
+        ) : bookings.length === 0 ? (
+          <p className="text-slate-500 py-10 text-center bg-slate-50 rounded-xl border border-dashed border-slate-300">
+            No service requests found.
+          </p>
+        ) : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {bookings.map((b) => (
+              <ServiceCard
+                key={b.id}
+                booking={b}
+                
+                // Passing down all role flags and data arrays
+                isAdmin={isAdmin}
+                isWorker={isWorker}
+                isResident={isResident}
+                workers={workers}
+                paymentOptions={paymentOptions}
+                
+                // Passing down all local action states
+                selectedWorker={selectedWorker}
+                setSelectedWorker={setSelectedWorker}
+                paymentMethod={paymentMethod}
+                setPaymentMethod={setPaymentMethod}
+                actionLoadingId={actionLoadingId}
+                
+                // Passing down all action handlers
+                handleAdminAssignWorker={handleAdminAssignWorker}
+                handleWorkerStatusUpdate={handleWorkerStatusUpdate}
+                handlePayment={handlePayment}
+                handleRefundRequest={handleRefundRequest}
               />
-              <div style={{ display: "flex", gap: 10, marginBottom: 10 }}>
-                <input 
-                  type="date" 
-                  min={new Date().toISOString().split("T")[0]} 
-                  value={preferredDate} 
-                  onChange={(e) => setPreferredDate(e.target.value)} 
-                />
-                <input type="time" value={preferredTime} onChange={(e) => setPreferredTime(e.target.value)} />
-              </div>
-              <button className="btn primary" type="submit" disabled={submitting}>Create Booking</button>
-          </form>
-        </div>
-      )}
-
-      <div style={{ background: "#fff", padding: 16, borderRadius: 8, boxShadow: "0 2px 4px rgba(0,0,0,0.1)" }}>
-        <h3>Bookings</h3>
-        {dataLoading ? <p>Loading data...</p> : (
-          <table width="100%" cellPadding="10" style={{ borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ background: "#f3f3f3", textAlign: "left" }}>
-                <th>Category</th><th>Description</th><th>Status</th><th>Worker</th><th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bookings.map((b) => {
-                const bookingStatus = (b.status || "").toUpperCase().trim();
-
-                return (
-                  <tr key={b.id} style={{ borderBottom: "1px solid #eee" }}>
-                    <td>{b.service_category}</td>
-                    <td>{b.description}</td>
-                    <td>
-                        <strong className={`status-${bookingStatus.toLowerCase()}`}>{b.status}</strong>
-                        {/* ✅ Refund Status Display */}
-                        {b.worker_payments?.refund_status === "REQUESTED" && (
-                            <div style={{ color: "#f39c12", fontSize: "0.8rem" }}>🟡 Refund Requested</div>
-                        )}
-                        {b.worker_payments?.refund_status === "REFUNDED" && (
-                            <div style={{ color: "#28a745", fontSize: "0.8rem" }}>🟢 Refunded</div>
-                        )}
-                    </td>
-                    <td>{b.worker_id || b.workers?.full_name || "-"}</td>
-                    <td>
-                      {/* ADMIN: Assign Worker */}
-                      {isAdmin && bookingStatus === "REQUESTED" && (
-                        <div style={{ display: "flex", gap: 5 }}>
-                          <select 
-                            value={selectedWorker[b.id] || ""}
-                            onChange={(e) => setSelectedWorker(prev => ({ ...prev, [b.id]: e.target.value }))}
-                          >
-                            <option value="">Select Worker</option>
-                            {workers.map(w => <option key={w.id} value={w.id}>{w.full_name}</option>)}
-                          </select>
-                          <button onClick={() => handleAdminAssignWorker(b.id)} disabled={actionLoadingId === b.id}>
-                            {actionLoadingId === b.id ? "..." : "Assign"}
-                          </button>
-                        </div>
-                      )}
-
-                      {/* WORKER: Progression */}
-                      {isWorker && bookingStatus === "ASSIGNED" && (
-                        <button onClick={() => handleWorkerStatusUpdate(b.id, "IN_PROGRESS")} disabled={actionLoadingId === b.id}>
-                          {actionLoadingId === b.id ? "..." : "Start Work"}
-                        </button>
-                      )}
-                      {isWorker && bookingStatus === "IN_PROGRESS" && (
-                        <button onClick={() => handleWorkerStatusUpdate(b.id, "COMPLETED")} disabled={actionLoadingId === b.id}>
-                          {actionLoadingId === b.id ? "..." : "Mark Completed"}
-                        </button>
-                      )}
-
-                      {/* RESIDENT: Payment & Refund */}
-                      {isResident && (
-                        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                          {bookingStatus === "COMPLETED" && (
-                            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                              <select 
-                                value={paymentMethod[b.id] || "UPI"} 
-                                onChange={(e) => setPaymentMethod(prev => ({ ...prev, [b.id]: e.target.value }))}
-                              >
-                                {paymentOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                              </select>
-                              <button 
-                                className="btn success" 
-                                style={{ background: "#28a745", color: "white" }}
-                                onClick={() => handlePayment(b.id)}
-                                disabled={actionLoadingId === b.id}
-                              >
-                                {actionLoadingId === b.id ? "Processing..." : `Pay ₹${b.amount || 500}`}
-                              </button>
-                            </div>
-                          )}
-
-                          {/* ✅ NEW: Refund Button logic */}
-                          {bookingStatus === "PAID" && b.worker_payments?.refund_status === "NONE" && (
-                            <button
-                              style={{ background: "#f39c12", color: "white", border: "none", padding: "6px 12px", borderRadius: "4px", cursor: "pointer" }}
-                              onClick={() => handleRefundRequest(b.worker_payments.id)}
-                              disabled={actionLoadingId === b.worker_payments.id}
-                            >
-                              {actionLoadingId === b.worker_payments.id ? "Submitting..." : "Request Refund"}
-                            </button>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Status Labels */}
-                      {isResident && bookingStatus === "REQUESTED" && (
-                        <small style={{ color: "gray" }}>Waiting for assignment</small>
-                      )}
-                      {bookingStatus === "PAID" && (
-                        <span style={{ color: "#28a745", fontWeight: "bold" }}>Payment Received ✅</span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+            ))}
+          </div>
         )}
       </div>
+
+      {/* ✅ Add Modal */}
+      <ServiceRequestModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onSubmit={handleCreateBooking}
+        submitting={submitting}
+      />
     </div>
   );
 }

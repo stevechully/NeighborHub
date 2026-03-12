@@ -11,11 +11,14 @@ export default function FacilityDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
 
-  
   const [facility, setFacility] = useState(null);
   const [selectedDate, setSelectedDate] = useState("");
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // ✅ Step 1: Add State for the Selected Slot and Modal
+  const [selectedSlot, setSelectedSlot] = useState(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   // 1. Fetch Facility Data
   useEffect(() => {
@@ -63,8 +66,7 @@ export default function FacilityDetails() {
         navigate("/facilities/bookings"); 
       } else {
         alert("Booking Confirmed! ✅");
-        // To refresh slots after booking, we'd need to call loadBookings again.
-        // A simple way is to just trigger the useEffect by re-setting the date
+        // To refresh slots after booking, re-set the date to trigger useEffect
         const currentDate = selectedDate;
         setSelectedDate("");
         setTimeout(() => setSelectedDate(currentDate), 10);
@@ -74,68 +76,153 @@ export default function FacilityDetails() {
     }
   };
 
-  if (loading) return <div style={{ padding: 20 }}>Loading facility details...</div>;
-  if (!facility) return <div style={{ padding: 20 }}>Facility not found.</div>;
+  if (loading) return <div className="p-10 text-slate-500">Loading facility details...</div>;
+  if (!facility) return <div className="p-10 text-slate-500">Facility not found.</div>;
 
   const slots = selectedDate 
     ? generateSlots(facility.open_time, facility.close_time, 60, selectedDate) 
     : [];
 
   return (
-    <div style={{ padding: 20 }}>
-      <button onClick={() => navigate(-1)} style={{ marginBottom: 20 }}>
-        ← Back to Facilities
+    <div className="max-w-5xl mx-auto p-6 relative">
+      
+      <button 
+        onClick={() => navigate(-1)} 
+        className="text-indigo-600 hover:text-indigo-800 font-medium mb-6 flex items-center gap-2 transition-colors"
+      >
+        <span>←</span> Back to Facilities
       </button>
 
-      <h2>{facility.name}</h2>
-      <p>{facility.description}</p>
-      <p><strong>Fee:</strong> {facility.is_paid ? `₹${facility.fee}` : "Free"}</p>
+      {/* Modern Facility Header */}
+      <div className="bg-white border rounded-xl p-6 shadow-sm mb-6">
+        <h1 className="text-2xl font-semibold">
+          {facility.name}
+        </h1>
 
-      <div style={{ marginBottom: 20 }}>
-        <label><strong>Select Date: </strong></label>
+        <p className="text-gray-500 mt-1">
+          {facility.description}
+        </p>
+
+        <div className="flex gap-6 mt-4 text-sm text-gray-600">
+          <div>
+            <span className="font-medium">Fee:</span>{" "}
+            {facility.is_paid ? `₹${facility.fee}` : "Free"}
+          </div>
+
+          <div>
+            <span className="font-medium">Open:</span>{" "}
+            {facility.open_time}
+          </div>
+
+          <div>
+            <span className="font-medium">Close:</span>{" "}
+            {facility.close_time}
+          </div>
+        </div>
+      </div>
+
+      {/* Modern Date Picker */}
+      <div className="bg-white border rounded-xl p-4 mb-6">
+        <label className="font-medium text-slate-700">
+          Select Date
+        </label>
+
         <input
           type="date"
           min={new Date().toISOString().split("T")[0]}
           value={selectedDate}
           onChange={(e) => setSelectedDate(e.target.value)}
-          style={{ padding: 8, borderRadius: 5, border: "1px solid #ccc" }}
+          className="block mt-2 border rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 outline-none text-slate-700"
         />
       </div>
 
-      <div style={{ 
-        display: "grid", 
-        gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", 
-        gap: 12 
-      }}>
+      {/* Modern Slot Grid & Buttons */}
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
         {selectedDate && slots.map((slot, index) => {
           const booked = isSlotBooked(slot, bookings);
           return (
             <button
               key={index}
               disabled={booked}
-              onClick={() => handleBooking(slot)}
-              style={{
-                padding: "15px",
-                cursor: booked ? "not-allowed" : "pointer",
-                backgroundColor: booked ? "#eee" : "#4CAF50",
-                color: booked ? "#999" : "white",
-                border: "1px solid #ccc",
-                borderRadius: "8px",
-                fontWeight: "bold"
+              // ✅ Step 2: Update onClick to open the modal
+              onClick={() => {
+                setSelectedSlot(slot);
+                setConfirmOpen(true);
               }}
+              className={`p-3 rounded-lg text-sm font-medium transition flex flex-col items-center justify-center
+                ${
+                  booked
+                    ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+                    : "bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm"
+                }`}
             >
-              {slot.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              {booked && <div style={{ fontSize: '10px', fontWeight: 'normal' }}>Unavailable</div>}
+              <span>
+                {slot.start.toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit"
+                })}
+              </span>
+
+              {booked && (
+                <div className="text-xs mt-0.5 opacity-80">
+                  Unavailable
+                </div>
+              )}
             </button>
           );
         })}
       </div>
       
+      {/* Improve Empty State */}
       {!selectedDate && (
-        <p style={{ color: "#666", backgroundColor: "#f9f9f9", padding: 15, borderRadius: 8 }}>
+        <div className="bg-gray-50 border rounded-xl p-4 text-gray-600 text-center mt-6">
           Please select a date above to view available time slots.
-        </p>
+        </div>
       )}
+
+      {/* ✅ Step 3: Create the Confirmation Modal */}
+      {confirmOpen && selectedSlot && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-[360px] shadow-lg">
+            
+            <h3 className="text-lg font-semibold mb-2">
+              Confirm Booking
+            </h3>
+            
+            <p className="text-gray-600 mb-2">
+              Book <strong>{facility.name}</strong> at
+            </p>
+            
+            <div className="text-2xl font-semibold mb-6 text-indigo-600">
+              {selectedSlot.start.toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit"
+              })}
+            </div>
+            
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setConfirmOpen(false)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
+              >
+                Cancel
+              </button>
+              
+              <button
+                onClick={() => {
+                  setConfirmOpen(false);
+                  handleBooking(selectedSlot);
+                }}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium"
+              >
+                Confirm Booking
+              </button>
+            </div>
+            
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { createEvent, deleteEvent, fetchEvents, registerForEvent, payForEvent } from "../../api/events.api";
 
+// ✅ Added Import
+import EventCard from "../../components/events/EventCard";
+
 export default function EventsPage() {
   const { profile, loading: authLoading } = useAuth();
 
@@ -119,179 +122,152 @@ export default function EventsPage() {
 
   if (authLoading || !profile) {
     return (
-      <div style={{ padding: 40, textAlign: "center" }}>
-        <p>Verifying session...</p>
+      <div className="p-10 flex justify-center items-center">
+        <p className="text-slate-500 font-medium animate-pulse">Verifying session...</p>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: 20 }}>
-      <h2>Events</h2>
-
-      <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
-        <button onClick={loadEvents}>Refresh</button>
+    <div className="max-w-7xl mx-auto p-6 space-y-6">
+      
+      {/* Header */}
+      <div className="flex justify-between items-center mb-6">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800">Community Events</h2>
+          <p className="text-sm text-slate-500 mt-1">Discover and join upcoming activities</p>
+        </div>
+        <button 
+          onClick={loadEvents}
+          className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
+        >
+          Refresh
+        </button>
       </div>
 
       {/* ADMIN CREATE EVENT */}
       {isAdmin && (
-        <div
-          style={{
-            background: "#fff",
-            padding: 16,
-            borderRadius: 8,
-            marginBottom: 16,
-          }}
-        >
-          <h3>Create Event (Admin)</h3>
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mb-8">
+          <h3 className="text-lg font-bold text-slate-800 mb-4">Create Event (Admin)</h3>
 
-          <form onSubmit={handleCreateEvent}>
-            <div style={{ marginBottom: 10 }}>
-              <label>Title</label>
-              <br />
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                style={{ width: "100%" }}
-              />
+          <form onSubmit={handleCreateEvent} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Title</label>
+                <input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                  placeholder="e.g., Summer Yoga Camp"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Location</label>
+                <input
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                  placeholder="e.g., Main Clubhouse"
+                />
+              </div>
             </div>
 
-            <div style={{ marginBottom: 10 }}>
-              <label>Description</label>
-              <br />
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
               <textarea
-                rows={3}
+                rows={2}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                style={{ width: "100%" }}
+                className="w-full border border-slate-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                placeholder="Details about the event..."
               />
             </div>
 
-            <div style={{ display: "flex", gap: 12, marginBottom: 10 }}>
-              <div>
-                <label>Date & Time</label>
-                <br />
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Date & Time</label>
                 <input
                   type="datetime-local"
                   min={new Date().toISOString().slice(0, 16)}
                   value={eventDate}
                   onChange={(e) => setEventDate(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                 />
               </div>
 
               <div>
-                <label>Location</label>
-                <br />
-                <input
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                />
-              </div>
-
-              <div>
-                <label>Capacity</label>
-                <br />
+                <label className="block text-sm font-medium text-slate-700 mb-1">Capacity</label>
                 <input
                   type="number"
                   value={capacity}
                   onChange={(e) => setCapacity(e.target.value)}
                   min={1}
+                  className="w-full border border-slate-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                 />
               </div>
-              
-              <div style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
-                <label>
+
+              <div className="flex items-center h-[42px] px-2">
+                <label className="flex items-center gap-2 cursor-pointer font-medium text-slate-700 text-sm">
                   <input 
                     type="checkbox" 
                     checked={isPaid} 
                     onChange={(e) => setIsPaid(e.target.checked)} 
+                    className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
                   /> 
-                  Is Paid?
+                  Paid Event
                 </label>
               </div>
-
-              {isPaid && (
-                <div>
-                  <label>Fee (₹)</label>
-                  <br />
-                  <input
-                    type="number"
-                    value={fee}
-                    onChange={(e) => setFee(e.target.value)}
-                    min={0}
-                  />
-                </div>
-              )}
             </div>
 
-            <button type="submit">Create Event</button>
+            {isPaid && (
+              <div className="w-1/4">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Fee (₹)</label>
+                <input
+                  type="number"
+                  value={fee}
+                  onChange={(e) => setFee(e.target.value)}
+                  min={0}
+                  className="w-full border border-slate-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                  placeholder="Amount"
+                />
+              </div>
+            )}
+
+            <button 
+              type="submit"
+              className="mt-4 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-lg font-bold transition-colors shadow-sm"
+            >
+              Create Event
+            </button>
           </form>
         </div>
       )}
 
-      {/* EVENT LIST */}
-      <div style={{ background: "#fff", padding: 16, borderRadius: 8 }}>
-        <h3>Upcoming Events</h3>
+      {/* ✅ REPLACED: EVENT LIST GRID */}
+      <div>
+        <h3 className="text-lg font-bold text-slate-800 mb-4">Upcoming Events</h3>
 
         {loading ? (
-          <p>Loading events...</p>
+          <p className="text-slate-500 py-10 text-center">Loading events...</p>
         ) : events.length === 0 ? (
-          <p>No events found.</p>
+          <p className="text-slate-500 py-10 text-center bg-slate-50 rounded-xl border border-dashed border-slate-300">
+            No events found.
+          </p>
         ) : (
-          <table width="100%" cellPadding="10" style={{ borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ background: "#f3f3f3" }}>
-                <th align="left">Title</th>
-                <th align="left">Date</th>
-                <th align="left">Location</th>
-                <th align="left">Capacity</th>
-                <th align="left">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {events.map((e) => (
-                <tr key={e.id} style={{ borderBottom: "1px solid #eee" }}>
-                  <td>
-                    <strong>{e.title}</strong>
-                    <div style={{ color: "#666", fontSize: 13 }}>{e.description}</div>
-                  </td>
-                  <td>{new Date(e.event_date).toLocaleString()}</td>
-                  <td>{e.location}</td>
-                  <td>{e.capacity}</td>
-                  <td>
-                    {isResident && (
-                      <div style={{ display: "flex", gap: "8px" }}>
-                        {e.is_paid ? (
-                          <>
-                            <button onClick={() => handleRegister(e.id)}>
-                              Register (₹{e.fee})
-                            </button>
-                            {/* Adding a manual Pay button to complete the testing flow easily */}
-                            <button 
-                              onClick={() => handlePay(e.id)} 
-                              style={{ background: "#28a745", color: "white", border: "none", borderRadius: "4px", padding: "5px 10px" }}
-                            >
-                              Pay Now
-                            </button>
-                          </>
-                        ) : (
-                          <button onClick={() => handleRegister(e.id)}>
-                            Register (Free)
-                          </button>
-                        )}
-                      </div>
-                    )}
-
-                    {isAdmin && (
-                      <button onClick={() => handleDeleteEvent(e.id)}>
-                        Delete
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {events.map((e) => (
+              <EventCard
+                key={e.id}
+                event={e}
+                isAdmin={isAdmin}
+                isResident={isResident}
+                onRegister={() => handleRegister(e.id)}
+                onPay={() => handlePay(e.id)}
+                onDelete={() => handleDeleteEvent(e.id)}
+              />
+            ))}
+          </div>
         )}
       </div>
     </div>

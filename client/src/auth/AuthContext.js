@@ -31,7 +31,6 @@ export function AuthProvider({ children }) {
       console.error("Logout failed:", err.message);
     } finally {
       // 2. Explicitly clear local state
-      // We do this in 'finally' to ensure the UI updates even if the network call fails
       setUser(null);
       setProfile(null);
     }
@@ -42,9 +41,6 @@ export function AuthProvider({ children }) {
 
     async function initializeAuth() {
       try {
-        console.log("AuthContext: Starting initialization...");
-
-        // 1. Explicitly check for an existing session on mount
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
         if (sessionError) {
@@ -53,14 +49,11 @@ export function AuthProvider({ children }) {
 
         if (mounted) {
           const sessionUser = session?.user ?? null;
-          console.log("AuthContext: Initial session user:", sessionUser?.email || "none");
           setUser(sessionUser);
 
           if (sessionUser) {
-            console.log("AuthContext: Fetching profile (non-blocking)...");
             loadProfile(sessionUser.id).then(p => {
               if (mounted) {
-                console.log("AuthContext: Profile loaded successfully");
                 setProfile(p);
               }
             }).catch(err => {
@@ -72,7 +65,6 @@ export function AuthProvider({ children }) {
         console.error("AuthContext: Unexpected initialization error:", err);
       } finally {
         if (mounted) {
-          console.log("AuthContext: Initialization flow complete, setting loading=false");
           setLoading(false);
         }
       }
@@ -80,10 +72,9 @@ export function AuthProvider({ children }) {
 
     initializeAuth();
 
-    // 2. Listen for subsequent auth state changes (login, logout, etc.)
+    // Listen for subsequent auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log(`AuthContext: Auth event fired: ${event}`);
         if (!mounted) return;
 
         const sessionUser = session?.user ?? null;
@@ -97,7 +88,7 @@ export function AuthProvider({ children }) {
           setProfile(null);
         }
 
-        setProfile(null); // Clear profile on logout event
+        // ✅ BUG FIXED: Removed the stray setProfile(null) that was here
         setLoading(false);
       }
     );
@@ -109,7 +100,6 @@ export function AuthProvider({ children }) {
   }, []);
 
   return (
-    // Added 'logout' to the Provider value so it is accessible via useAuth()
     <AuthContext.Provider value={{ user, profile, loading, logout }}>
       {children}
     </AuthContext.Provider>

@@ -1,199 +1,71 @@
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import { useAuth } from "../auth/AuthContext";
+import React from "react";
+import { NavLink } from "react-router-dom";
+import { useAuth } from "../../auth/AuthContext";
+import { sidebarMenu } from "../../config/sidebarMenu";
+import {
+  Home, Bell, MessageSquare, Wrench, Settings, Calendar,
+  ShoppingCart, Building, Package, ShieldCheck, Wallet
+} from "lucide-react";
+
+// Helper to auto-assign icons based on the path
+const getIcon = (path) => {
+  if (path.includes("dashboard")) return <Home size={18} />;
+  if (path.includes("notices")) return <Bell size={18} />;
+  if (path.includes("complaints")) return <MessageSquare size={18} />;
+  if (path.includes("worker-services")) return <Wrench size={18} />;
+  if (path.includes("maintenance")) return <Settings size={18} />;
+  if (path.includes("events")) return <Calendar size={18} />;
+  if (path.includes("marketplace")) return <ShoppingCart size={18} />;
+  if (path.includes("facilities")) return <Building size={18} />;
+  if (path.includes("parcels")) return <Package size={18} />;
+  if (path.includes("gate")) return <ShieldCheck size={18} />;
+  if (path.includes("refunds")) return <Wallet size={18} />;
+  return <Home size={18} />; // fallback
+};
 
 export default function Sidebar() {
-  const { profile, logout } = useAuth();
-  const location = useLocation();
-  const navigate = useNavigate();
+  const { profile } = useAuth();
 
-  const roleName =
-    profile?.roles?.name || profile?.role || profile?.user_roles?.role || null;
-
-  const isAdmin = roleName === "ADMIN";
-  const isResident = roleName === "RESIDENT";
-  const isWorker = roleName === "WORKER";
-  const isSecurity = roleName === "SECURITY";
-
-  // Sidebar Links by role
-  const links = [];
-
-  links.push({ label: "Dashboard", to: "/dashboard" });
-
-  if (isResident) {
-    links.push(
-      { label: "Complaints", to: "/complaints" },
-      { label: "Worker Services", to: "/worker-services" },
-      { label: "Notices", to: "/notices" },
-      { label: "Events", to: "/events" },
-      { label: "My Events", to: "/my-events" },
-      { label: "Facilities", to: "/facilities" },
-      // ✅ Added Resident Specific Bookings Link
-      { label: "My Facility Bookings", to: "/facilities/my-bookings" },
-      { label: "Maintenance", to: "/maintenance" },
-      { label: "My Visitors & Parcels", to: "/my-parcels" },
-      { label: "Marketplace", to: "/marketplace" }
-    );
-  }
-
-  if (isWorker) {
-    links.push(
-      { label: "Complaints", to: "/complaints" },
-      { label: "Worker Services", to: "/worker-services" },
-      { label: "Marketplace", to: "/marketplace" }
-    );
-  }
-
-  if (isSecurity) {
-    links.push(
-      { label: "Gate Management", to: "/gate" },
-      { label: "Marketplace", to: "/marketplace" }
-    );
-  }
-
-  if (isAdmin) {
-    links.push(
-      { label: "Complaints", to: "/complaints" },
-      { label: "Worker Services", to: "/worker-services" },
-      { label: "Notices", to: "/notices" },
-      { label: "Events", to: "/events" },
-      { label: "Facilities", to: "/facilities" },
-      { label: "Manage Facilities", to: "/admin/facilities", highlight: true }, 
-      // ✅ Added Refund Management Link for Admins
-      { label: "Refund Management", to: "/admin/refunds", highlight: true },
-      { label: "Maintenance", to: "/maintenance" },
-      { label: "Gate Management", to: "/gate" },
-      { label: "Marketplace", to: "/marketplace" },
-      { label: "Approve Sellers", to: "/marketplace/sellers", highlight: true }
-    );
-  }
-
-  const handleLogout = async () => {
-    await logout();
-    navigate("/login");
-  };
+  // Role detection with fallback to RESIDENT
+  const roleName = profile?.roles?.name || profile?.role || profile?.user_roles?.role || "RESIDENT";
+  
+  // Fetch menu array from config
+  const menuItems = sidebarMenu[roleName] || sidebarMenu.RESIDENT;
 
   return (
-    <div style={styles.sidebar}>
-      <div style={styles.brand}>
-        <div style={styles.brandLogo}>RP</div>
-        <div>
-          <div style={styles.brandTitle}>Resident Portal</div>
-          <div style={styles.brandSub}>Smart Community</div>
-        </div>
+    <aside className="w-64 bg-white border-r flex flex-col shrink-0">
+
+      {/* Logo */}
+      <div className="p-6 border-b border-slate-200">
+        <h1 className="font-bold text-lg text-indigo-600 tracking-tight">NeighborHub</h1>
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-widest mt-1">Smart Community</p>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 4, overflowY: "auto" }}>
-        {links.map((item) => {
-          const active = location.pathname === item.to;
+      <nav className="flex-1 overflow-y-auto p-4 space-y-1">
+        
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-3 mt-2 mb-3">
+          Main Menu
+        </p>
 
-          return (
-            <Link
-              key={item.to}
-              to={item.to}
-              style={{
-                ...styles.link,
-                ...(active ? styles.activeLink : {}),
-                ...(item.highlight ? styles.highlightLink : {}),
-              }}
-            >
-              <span style={{ fontWeight: 600, fontSize: 14 }}>{item.label}</span>
-            </Link>
-          );
-        })}
-      </div>
+        {menuItems.map((item) => (
+          <NavLink
+            key={item.path}
+            to={item.path}
+            className={({ isActive }) =>
+              `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                isActive
+                  ? "bg-indigo-50 text-indigo-700 shadow-sm border border-indigo-100/50"
+                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+              }`
+            }
+          >
+            {getIcon(item.path)}
+            {item.name}
+          </NavLink>
+        ))}
 
-      <div style={styles.footer}>
-        <div style={styles.roleBox}>
-          <div style={{ fontSize: 11, color: "#6b7280", textTransform: 'uppercase', letterSpacing: '0.5px' }}>Role</div>
-          <div style={{ fontWeight: 700, color: "#111827" }}>{roleName || "User"}</div>
-        </div>
+      </nav>
 
-        <button onClick={handleLogout} style={styles.logoutBtn}>
-          Logout
-        </button>
-      </div>
-    </div>
+    </aside>
   );
 }
-
-const styles = {
-  sidebar: {
-    width: 260,
-    height: "100vh",
-    background: "#fff",
-    borderRight: "1px solid #e5e7eb",
-    padding: "24px 16px",
-    display: "flex",
-    flexDirection: "column",
-    gap: 24,
-  },
-  brand: {
-    display: "flex",
-    gap: 12,
-    alignItems: "center",
-    padding: "0 8px 16px 8px",
-    borderBottom: "1px solid #f3f4f6",
-  },
-  brandLogo: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    display: "grid",
-    placeItems: "center",
-    background: "#1e40af",
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: 800,
-  },
-  brandTitle: {
-    fontWeight: 700,
-    fontSize: 15,
-    color: "#111827",
-    lineHeight: 1.2,
-  },
-  brandSub: {
-    fontSize: 12,
-    color: "#6b7280",
-  },
-  link: {
-    display: "flex",
-    alignItems: "center",
-    padding: "10px 12px",
-    borderRadius: 8,
-    textDecoration: "none",
-    color: "#4b5563",
-    transition: "0.2s all ease",
-  },
-  activeLink: {
-    background: "#f3f4f6",
-    color: "#1e40af",
-  },
-  highlightLink: {
-    background: "#fff7ed",
-    color: "#c2410c",
-  },
-  footer: {
-    marginTop: "auto",
-    display: "flex",
-    flexDirection: "column",
-    gap: 12,
-    paddingTop: 16,
-    borderTop: "1px solid #f3f4f6",
-  },
-  roleBox: {
-    padding: "10px 12px",
-    borderRadius: 8,
-    background: "#f9fafb",
-  },
-  logoutBtn: {
-    padding: "10px 12px",
-    borderRadius: 8,
-    border: "1px solid #e5e7eb",
-    background: "#fff",
-    color: "#374151",
-    fontWeight: 600,
-    fontSize: 14,
-    cursor: "pointer",
-    transition: "0.2s",
-  },
-};

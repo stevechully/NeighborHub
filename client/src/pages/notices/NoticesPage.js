@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { createNotice, deleteNotice, fetchNotices } from "../../api/notices.api";
 
+// ✅ Added Import
+import NoticeCard from "../../components/notices/NoticeCard";
+
 export default function NoticesPage() {
   const { profile, loading: authLoading } = useAuth();
 
@@ -83,61 +86,66 @@ export default function NoticesPage() {
 
   if (authLoading || !profile) {
     return (
-      <div style={{ padding: 40, textAlign: "center" }}>
-        <p>Verifying session...</p>
+      <div className="p-10 flex justify-center items-center">
+        <p className="text-slate-500 font-medium animate-pulse">Verifying session...</p>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: 20 }}>
-      <h2>Notice Board</h2>
+    <div className="max-w-4xl mx-auto p-6 space-y-6">
+      
+      {/* ✅ REPLACED: Modern Page Header */}
+      <div className="flex justify-between items-center mb-6 border-b border-slate-200 pb-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">
+            Notice Board
+          </h1>
+          <p className="text-sm text-slate-500 mt-1">Stay updated with community announcements</p>
+        </div>
 
-      <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
-        <button onClick={loadNotices}>Refresh</button>
+        <button
+          onClick={loadNotices}
+          className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
+        >
+          Refresh
+        </button>
       </div>
 
       {/* ADMIN CREATE NOTICE */}
       {isAdmin && (
-        <div
-          style={{
-            background: "#fff",
-            padding: 16,
-            borderRadius: 8,
-            marginBottom: 16,
-          }}
-        >
-          <h3>Create Notice (Admin)</h3>
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mb-8">
+          <h3 className="text-lg font-bold text-slate-800 mb-4">Create Notice (Admin)</h3>
 
-          <form onSubmit={handleCreateNotice}>
-            <div style={{ marginBottom: 10 }}>
-              <label>Title</label>
-              <br />
+          <form onSubmit={handleCreateNotice} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Title</label>
               <input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                style={{ width: "100%" }}
+                className="w-full border border-slate-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                placeholder="Announcement Title"
               />
             </div>
 
-            <div style={{ marginBottom: 10 }}>
-              <label>Content</label>
-              <br />
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Content</label>
               <textarea
                 rows={4}
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                style={{ width: "100%" }}
+                className="w-full border border-slate-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                placeholder="What do residents need to know?"
               />
             </div>
 
-            <div style={{ display: "flex", gap: 12, marginBottom: 10 }}>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label>Priority</label>
-                <br />
+                <label className="block text-sm font-medium text-slate-700 mb-1">Priority</label>
                 <select
                   value={priority}
                   onChange={(e) => setPriority(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-indigo-500 text-sm bg-white"
                 >
                   <option value="LOW">LOW</option>
                   <option value="NORMAL">NORMAL</option>
@@ -147,79 +155,63 @@ export default function NoticesPage() {
               </div>
 
               <div>
-                <label>Target</label>
-                <br />
+                <label className="block text-sm font-medium text-slate-700 mb-1">Target Audience</label>
                 <select
                   value={target}
                   onChange={(e) => setTarget(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-indigo-500 text-sm bg-white"
                 >
                   <option value="ALL">ALL</option>
-                  <option value="RESIDENT">RESIDENT</option>
-                  <option value="WORKER">WORKER</option>
-                  <option value="ADMIN">ADMIN</option>
+                  <option value="RESIDENT">RESIDENTS</option>
+                  <option value="WORKER">WORKERS</option>
+                  <option value="ADMIN">ADMINS</option>
                 </select>
               </div>
 
               <div>
-                <label>Expires At (optional)</label>
-                <br />
-                {/* ✅ FIX APPLIED HERE */}
+                <label className="block text-sm font-medium text-slate-700 mb-1">Expires At (Optional)</label>
                 <input
                   type="datetime-local"
                   min={new Date().toISOString().slice(0, 16)}
                   value={expiresAt}
                   onChange={(e) => setExpiresAt(e.target.value)}
+                  className="w-full border border-slate-300 rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
                 />
               </div>
             </div>
 
-            <button type="submit">Create Notice</button>
+            <button 
+              type="submit"
+              className="mt-4 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-lg font-bold transition-colors shadow-sm"
+            >
+              Post Notice
+            </button>
           </form>
         </div>
       )}
 
-      {/* NOTICE LIST */}
-      <div style={{ background: "#fff", padding: 16, borderRadius: 8 }}>
-        <h3>Notices</h3>
-
+      {/* ✅ REPLACED: NOTICE LIST */}
+      <div>
         {loading ? (
-          <p>Loading notices...</p>
+          <p className="text-slate-500 py-10 text-center">Loading notices...</p>
         ) : notices.length === 0 ? (
-          <p>No notices found.</p>
+          <p className="text-slate-500 py-10 text-center bg-slate-50 rounded-xl border border-dashed border-slate-300">
+            No active notices.
+          </p>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {notices.map((n) => (
-              <div
-                key={n.id}
-                style={{
-                  border: "1px solid #eee",
-                  borderRadius: 8,
-                  padding: 12,
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between" }}>
-                  <h4 style={{ margin: 0 }}>{n.title}</h4>
-                  <span style={{ fontWeight: "bold" }}>{n.priority}</span>
-                </div>
-
-                <p style={{ marginTop: 8 }}>{n.content}</p>
-
-                <small style={{ color: "#666" }}>
-                  Target: {n.target} | Created: {new Date(n.created_at).toLocaleString()}
-                </small>
-
-                {isAdmin && (
-                  <div style={{ marginTop: 10 }}>
-                    <button onClick={() => handleDeleteNotice(n.id)}>
-                      Delete
-                    </button>
-                  </div>
-                )}
-              </div>
+          <div className="space-y-4">
+            {notices.map((notice) => (
+              <NoticeCard
+                key={notice.id}
+                notice={notice}
+                isAdmin={isAdmin}
+                onDelete={() => handleDeleteNotice(notice.id)} // Passed down in case the card handles deletion!
+              />
             ))}
           </div>
         )}
       </div>
+      
     </div>
   );
 }
