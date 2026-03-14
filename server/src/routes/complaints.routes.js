@@ -41,12 +41,20 @@ router.post('/', requireAuth, async (req, res) => {
 
 /**
  * GET /api/complaints
- * Fetch complaints (Includes profile info for "Raised By" display)
+ * ✅ SECURED: Role-based filtering applied
  */
 router.get('/', requireAuth, async (req, res) => {
   const { status, priority } = req.query;
 
-  // ✅ UPDATED: Joined with profiles using resident_id
+  // 1. Get the user's role
+  const { data: roleRow } = await req.supabase
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', req.userId)
+    .single();
+
+  const role = roleRow?.role;
+
   let query = req.supabase
     .from('complaints')
     .select(`
@@ -57,6 +65,17 @@ router.get('/', requireAuth, async (req, res) => {
       )
     `);
 
+  // 2. 🔒 Apply Role-based filtering
+  if (role === 'RESIDENT') {
+    // Residents only see their own complaints
+    query = query.eq('resident_id', req.userId);
+  } else if (role === 'WORKER') {
+    // Workers only see complaints assigned to them
+    query = query.eq('assigned_worker_id', req.userId);
+  }
+  // If role is ADMIN, no `.eq` is added, so they see everything!
+
+  // 3. Apply URL Filters
   if (status) query = query.eq('status', status);
   if (priority) query = query.eq('priority', priority);
 

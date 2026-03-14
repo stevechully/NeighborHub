@@ -1,25 +1,16 @@
 import { useEffect, useState, useCallback } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { useLocation } from "react-router-dom"; 
-import {
-  fetchFacilityBookings,
-  fetchMyFacilityBookings,
-  updateFacilityBookingStatus,
-  cancelFacilityBooking,
-  payForFacilityBooking,
-  requestFacilityRefund,
-} from "../../api/facilities.api";
-
-// ✅ Added Import
+import { fetchFacilityBookings, fetchMyFacilityBookings, updateFacilityBookingStatus, cancelFacilityBooking, requestFacilityRefund } from "../../api/facilities.api";
 import FacilityBookingCard from "../../components/facilities/FacilityBookingCard";
+import { usePayment } from "../../components/payments/PaymentContext"; // ✅ Global Payment Hook
 
 export default function FacilityBookingsPage() {
   const { profile, loading: authLoading } = useAuth();
   const location = useLocation();
+  const { openPayment } = usePayment(); // ✅ Initialize hook
 
-  const roleName =
-    profile?.roles?.name || profile?.role || profile?.user_roles?.role || null;
-
+  const roleName = profile?.roles?.name || profile?.role || profile?.user_roles?.role || null;
   const isAdmin = roleName === "ADMIN";
   const isMyBookingsPage = location.pathname.includes("my-bookings");
 
@@ -29,14 +20,10 @@ export default function FacilityBookingsPage() {
   const loadBookings = useCallback(async () => {
     try {
       setLoading(true);
-      const data = (isAdmin && !isMyBookingsPage)
-        ? await fetchFacilityBookings()
-        : await fetchMyFacilityBookings();
-      
+      const data = (isAdmin && !isMyBookingsPage) ? await fetchFacilityBookings() : await fetchMyFacilityBookings();
       setBookings(data || []);
     } catch (err) {
       console.log("❌ Facility bookings fetch failed:", err.message);
-      alert(err.message);
     } finally {
       setLoading(false);
     }
@@ -55,24 +42,23 @@ export default function FacilityBookingsPage() {
       } else {
         await updateFacilityBookingStatus(id, status);
       }
-      alert(`Booking ${status} ✅`);
-      await loadBookings();
+      loadBookings();
     } catch (err) {
       alert(err.message);
     }
   }
 
-  async function handlePayment(id) {
-    const method = window.prompt("Enter payment method (e.g., Credit Card, Cash):", "Credit Card");
-    if (!method) return;
-
-    try {
-      await payForFacilityBooking(id, method);
-      alert("Payment successful! Booking Confirmed.");
-      await loadBookings();
-    } catch (err) {
-      alert("Payment failed: " + err.message);
-    }
+  // ✅ Trigger Global Modal for pending bookings
+  function handlePayment(booking) {
+    openPayment({
+      module: "FACILITY",
+      referenceId: booking.id,
+      amount: booking.facilities.fee, 
+      itemName: booking.facilities.name,
+      onSuccess: () => {
+        loadBookings(); // Refresh list to show CONFIRMED status
+      }
+    });
   }
 
   async function handleRefundRequest(paymentId) {
@@ -98,8 +84,6 @@ export default function FacilityBookingsPage() {
 
   return (
     <div className="max-w-7xl mx-auto p-6 space-y-6">
-      
-      {/* ✅ Improved Page Header */}
       <div className="flex justify-between items-center mb-6 border-b border-slate-200 pb-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">
@@ -109,16 +93,11 @@ export default function FacilityBookingsPage() {
             {isMyBookingsPage ? "Manage your amenity reservations" : "Review and approve community reservations"}
           </p>
         </div>
-
-        <button
-          onClick={loadBookings}
-          className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-lg font-medium transition-colors shadow-sm"
-        >
+        <button onClick={loadBookings} className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-4 py-2 rounded-lg font-medium transition-colors shadow-sm">
           Refresh
         </button>
       </div>
 
-      {/* ✅ Replaced Table With Cards */}
       <div>
         {loading ? (
           <p className="text-slate-500 py-10 text-center">Loading bookings...</p>
@@ -134,18 +113,15 @@ export default function FacilityBookingsPage() {
                 booking={b}
                 isAdmin={isAdmin}
                 isMyBookingsPage={isMyBookingsPage}
-                
-                // Passed down mapped actions in case your card expects these exact names
                 onCancel={() => handleUpdateStatus(b.id, "CANCELLED")}
                 onRefund={() => b.facility_payments ? handleRefundRequest(b.facility_payments.id) : alert("No payment found")}
-                onPay={() => handlePayment(b.id)}
+                onPay={() => handlePayment(b)} // ✅ Passes the whole booking object now
                 onApprove={() => handleUpdateStatus(b.id, "APPROVED")}
               />
             ))}
           </div>
         )}
       </div>
-
     </div>
   );
 }

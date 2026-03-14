@@ -1,17 +1,22 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../auth/AuthContext";
+import { ShoppingCart, RefreshCw, PackagePlus, Loader2 } from "lucide-react";
+
+// ✅ Global Hooks
+import { useCart } from "../../context/CartContext";
+import { usePayment } from "../../components/payments/PaymentContext"; 
+
+// API Methods
 import {
   fetchMarketplaceProducts,
   fetchAllMarketplaceProducts,
   approveMarketplaceProduct,
   createMarketplaceProduct,
-  placeMarketplaceOrder,
   fetchMyMarketplaceOrders,
   fetchAllMarketplaceOrders,
   fetchMyMarketplacePayments,
   fetchAllMarketplacePayments,
-  payMarketplaceOrder,
   requestMarketplaceRefund,
   approveMarketplaceRefund,
 } from "../../api/marketplace.api";
@@ -21,15 +26,17 @@ import ProductCard from "../../components/marketplace/ProductCard";
 import SellItemModal from "../../components/marketplace/SellItemModal"; 
 import OrderCard from "../../components/marketplace/OrderCard"; 
 import PaymentCard from "../../components/marketplace/PaymentCard";
-import MarketplaceTabs from "../../components/marketplace/MarketplaceTabs"; // ✅ NEW TABS IMPORT
+import MarketplaceTabs from "../../components/marketplace/MarketplaceTabs";
 
 export default function MarketplacePage() {
   const { profile, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  
+  // Initialize Global Contexts
+  const { addToCart, itemCount } = useCart();
+  const { openPayment } = usePayment();
 
-  const roleName =
-    profile?.roles?.name || profile?.role || profile?.user_roles?.role || null;
-
+  const roleName = profile?.roles?.name || profile?.role || profile?.user_roles?.role || null;
   const isAdmin = roleName === "ADMIN";
   const isResident = roleName === "RESIDENT";
 
@@ -38,33 +45,20 @@ export default function MarketplacePage() {
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Sell Item Modal State
+  // Modal & Form State
   const [sellModal, setSellModal] = useState(false);
-
-  // Post product form states
-  const [pName, setPName] = useState("");
-  const [pDesc, setPDesc] = useState("");
-  const [pCategory, setPCategory] = useState("GENERAL");
-  const [pPrice, setPPrice] = useState("");
-  const [pQty, setPQty] = useState("");
-
-  // Ordering states
   const [orderQtyMap, setOrderQtyMap] = useState({});
-  const [orderingId, setOrderingId] = useState(null);
-
-  // Payment Action States 
-  const [payingOrderId, setPayingOrderId] = useState(null);
-  const [paymentMethodMap, setPaymentMethodMap] = useState({});
+  const [toastMsg, setToastMsg] = useState("");
 
   const categories = useMemo(
     () => ["GENERAL", "FOOD", "GROCERY", "ELECTRONICS", "HOME", "OTHER"],
     []
   );
 
-  const paymentMethods = useMemo(
-    () => ["MOCK_UPI", "MOCK_CARD", "CASH", "BANK_TRANSFER"],
-    []
-  );
+  const showToast = (msg) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(""), 3000);
+  };
 
   const loadData = useCallback(async () => {
     try {
@@ -93,7 +87,6 @@ export default function MarketplacePage() {
       setPayments(payData || []);
     } catch (err) {
       console.error("❌ Marketplace load failed:", err.message);
-      alert(err.message);
     } finally {
       setLoading(false);
     }
@@ -105,95 +98,65 @@ export default function MarketplacePage() {
     }
   }, [authLoading, profile, loadData]);
 
+  // --- ACTIONS ---
+
   async function handleApprove(productId) {
     if (!window.confirm("Approve this product?")) return;
     try {
       await approveMarketplaceProduct(productId);
-      alert("Product approved ✅");
+      showToast("Product approved ✅");
       await loadData();
     } catch (err) {
-      alert(err.message);
+      showToast("❌ Approval failed");
     }
   }
 
-  async function handlePostProduct(e, modalData = null) {
+  async function handlePostProduct(e, modalData) {
     if (e && e.preventDefault) e.preventDefault();
     
-    const name = modalData?.pName || pName;
-    const price = modalData?.pPrice || pPrice;
-    const qty = modalData?.pQty || pQty;
-    const desc = modalData?.pDesc || pDesc;
-    const cat = modalData?.pCategory || pCategory;
-
-    if (!name || !price || !qty) {
-      alert("Name, price and quantity are required");
-      return;
-    }
-
     try {
       await createMarketplaceProduct({
-        name: name,
-        description: desc,
-        category: cat,
-        price: Number(price),
-        quantity: Number(qty),
+        name: modalData.pName,
+        description: modalData.pDesc,
+        category: modalData.pCategory,
+        price: Number(modalData.pPrice),
+        quantity: Number(modalData.pQty),
       });
 
-      alert("Product submitted ✅ (waiting for admin approval)");
-      
-      // Reset local state
-      setPName(""); setPDesc(""); setPPrice(""); setPQty("");
-      setPCategory("GENERAL");
-      
-      // Close the modal after successful posting
+      showToast("Listing submitted for approval ✅");
       setSellModal(false);
-
       await loadData();
     } catch (err) {
-      alert(err.message);
+      showToast("❌ Submission failed");
     }
   }
 
-  async function handlePlaceOrder(productId) {
-    const qty = Number(orderQtyMap[productId] || 1);
-    if (!qty || qty <= 0) {
-      alert("Enter a valid quantity");
+  function handleAddToCart(product) {
+    const qty = Number(orderQtyMap[product.id] || 1);
+    
+    if (qty > product.quantity) {
+      showToast("⚠️ Not enough stock available");
       return;
     }
 
-    try {
-      setOrderingId(productId);
-      await placeMarketplaceOrder({
-        product_id: productId,
-        quantity: qty,
-      });
-
-      alert("Order placed ✅");
-      await loadData();
-    } catch (err) {
-      alert(err.message);
-    } finally {
-      setOrderingId(null);
-    }
+    addToCart(product, qty);
+    showToast(`Added ${qty}x ${product.name} to cart 🛒`);
+    
+    // Reset qty for this product
+    setOrderQtyMap((prev) => ({ ...prev, [product.id]: 1 }));
   }
 
-  async function handlePayOrder(orderId) {
-    try {
-      setPayingOrderId(orderId);
-      
-      const method = paymentMethodMap[orderId] || "MOCK_UPI";
-
-      const res = await payMarketplaceOrder(orderId, {
-        payment_method: method,
-      });
-
-      alert(`Payment success ✅ Ref: ${res.transaction_ref}`);
-      await loadData();
-    } catch (err) {
-      alert(err.message);
-    } finally {
-      setPayingOrderId(null);
-    }
+  function handlePayOrder(order) {
+    openPayment({
+      module: "MARKETPLACE_ORDER",
+      referenceId: order.id,
+      amount: order.marketplace_products.price * order.quantity,
+      itemName: order.marketplace_products.name,
+      onSuccess: () => {
+        showToast("Payment Success ✅");
+        loadData();
+      }
+    });
   }
 
   const handleRefundRequest = async (paymentId) => {
@@ -202,56 +165,75 @@ export default function MarketplacePage() {
 
     try {
       await requestMarketplaceRefund(paymentId, reason);
-      alert("Refund request submitted successfully! 🟡");
+      showToast("Refund requested 🟡");
       loadData();
     } catch (err) {
-      alert(err.message || "Request failed");
+      showToast("❌ Request failed");
     }
   };
 
   const handleApproveRefund = async (paymentId) => {
-    if (!window.confirm("Approve this refund and mark the order as cancelled?")) return;
+    if (!window.confirm("Approve this refund?")) return;
     try {
       await approveMarketplaceRefund(paymentId);
-      alert("Refund processed successfully! 🟢");
+      showToast("Refund completed 🟢");
       loadData();
     } catch (err) {
-      alert(err.message || "Failed to approve refund");
+      showToast("❌ Approval failed");
     }
   };
 
   if (authLoading || !profile) {
     return (
-      <div style={{ padding: 40, textAlign: "center" }}>
-        <h3>Verifying session...</h3>
+      <div className="p-20 text-center">
+        <Loader2 className="animate-spin mx-auto text-indigo-600" size={40} />
+        <p className="text-slate-500 mt-4 font-medium">Loading Marketplace...</p>
       </div>
     );
   }
 
-  // ==========================================
-  // TAB CONTENT SECTIONS
-  // ==========================================
+  // --- SECTIONS ---
 
   const browseSection = (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold">
-          Marketplace
-        </h2>
-        {isResident && (
-          <button
-            onClick={() => setSellModal(true)}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg transition-colors"
-          >
-            + Sell Item
-          </button>
-        )}
+    <div className="space-y-6">
+      <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+        <div>
+          <h2 className="text-xl font-bold text-slate-800">Available Products</h2>
+          <p className="text-sm text-slate-500">Shop items from your neighbors</p>
+        </div>
+        
+        <div className="flex gap-3">
+          {isResident && (
+            <>
+              <button
+                onClick={() => setSellModal(true)}
+                className="flex items-center gap-2 bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all"
+              >
+                <PackagePlus size={18} /> Sell Item
+              </button>
+              
+              <button
+                onClick={() => navigate("/marketplace/cart")}
+                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-md shadow-indigo-100"
+              >
+                <ShoppingCart size={18} />
+                Cart {itemCount > 0 && (
+                  <span className="bg-white text-indigo-600 px-2 py-0.5 rounded-full text-[10px] ml-1">
+                    {itemCount}
+                  </span>
+                )}
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {loading ? (
-        <p className="text-slate-500">Loading products...</p>
+        <p className="text-center py-20 text-slate-400">Fetching products...</p>
       ) : products.length === 0 ? (
-        <p className="text-slate-500">No products available.</p>
+        <div className="text-center py-20 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
+          <p className="text-slate-500 font-medium">No products listed in your community yet.</p>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {products.map((p) => (
@@ -261,12 +243,9 @@ export default function MarketplacePage() {
               isResident={isResident}
               isAdmin={isAdmin}
               orderQty={orderQtyMap[p.id] || 1}
-              setQty={(id, qty) =>
-                setOrderQtyMap((prev) => ({ ...prev, [id]: qty }))
-              }
-              onBuy={handlePlaceOrder}
+              setQty={(id, qty) => setOrderQtyMap((prev) => ({ ...prev, [id]: qty }))}
+              onAddToCart={() => handleAddToCart(p)}
               onApprove={handleApprove}
-              loading={orderingId === p.id}
             />
           ))}
         </div>
@@ -275,85 +254,74 @@ export default function MarketplacePage() {
   );
 
   const ordersSection = (
-    <div>
-      {loading ? (
-        <p className="text-slate-500">Loading orders...</p>
-      ) : orders.length === 0 ? (
-        <p className="text-slate-500">No orders found.</p>
-      ) : (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {orders.map((o) => (
-            <OrderCard
-              key={o.id}
-              order={o}
-              isResident={isResident}
-              isAdmin={isAdmin}
-              paymentMethods={paymentMethods}
-              paymentMethodMap={paymentMethodMap}
-              setPaymentMethodMap={setPaymentMethodMap}
-              handlePayOrder={handlePayOrder}
-              payingOrderId={payingOrderId}
-              handleRefundRequest={handleRefundRequest}
-              navigate={navigate}
-            />
-          ))}
-        </div>
-      )}
+    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {orders.map((o) => (
+        <OrderCard
+          key={o.id}
+          order={o}
+          isResident={isResident}
+          isAdmin={isAdmin}
+          handlePayOrder={() => handlePayOrder(o)}
+          handleRefundRequest={handleRefundRequest}
+          navigate={navigate}
+        />
+      ))}
     </div>
   );
 
   const paymentsSection = (
-    <div>
-      {loading ? (
-        <p className="text-slate-500">Loading payments...</p>
-      ) : payments.length === 0 ? (
-        <p className="text-slate-500">No payments found.</p>
-      ) : (
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {payments.map((p) => (
-            <PaymentCard
-              key={p.id}
-              payment={p}
-              isAdmin={isAdmin}
-              navigate={navigate}
-              handleApproveRefund={handleApproveRefund}
-            />
-          ))}
-        </div>
-      )}
+    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {payments.map((p) => (
+        <PaymentCard
+          key={p.id}
+          payment={p}
+          isAdmin={isAdmin}
+          navigate={navigate}
+          handleApproveRefund={handleApproveRefund}
+        />
+      ))}
     </div>
   );
 
-  // ==========================================
-  // MAIN RENDER
-  // ==========================================
-
   return (
-    <div style={{ padding: 20 }}>
-      {/* Header Info */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <div style={{ marginBottom: 16 }}>
-          <strong className="text-slate-700">Role:</strong> <span className="text-indigo-600 font-medium">{roleName || "Unknown"}</span>
+    <div className="max-w-7xl mx-auto p-6 space-y-6">
+      
+      {/* Role Info & Refresh */}
+      <div className="flex justify-between items-center border-b border-slate-200 pb-4">
+        <div className="flex items-center gap-3">
+          <span className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider">
+            {roleName}
+          </span>
+          <h1 className="text-2xl font-black text-slate-800 tracking-tight">Marketplace</h1>
         </div>
-        <button onClick={loadData} className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-          Refresh Data
+        <button 
+          onClick={loadData} 
+          className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-all"
+          title="Refresh Data"
+        >
+          <RefreshCw size={22} className={loading ? "animate-spin" : ""} />
         </button>
       </div>
 
-      {/* ✅ NEW TABBED INTERFACE */}
       <MarketplaceTabs
         browseContent={browseSection}
         ordersContent={ordersSection}
         paymentsContent={paymentsSection}
       />
 
-      {/* Modal is kept entirely separate so it can float over the UI */}
       <SellItemModal
         open={sellModal}
         onClose={() => setSellModal(false)}
         onSubmit={handlePostProduct}
         categories={categories}
       />
+
+      {/* Toast Notification */}
+      {toastMsg && (
+        <div className="fixed bottom-6 right-6 bg-slate-900 text-white px-6 py-3 rounded-xl shadow-2xl font-medium z-50 animate-in slide-in-from-bottom-5 duration-300">
+          {toastMsg}
+        </div>
+      )}
 
     </div>
   );

@@ -11,7 +11,7 @@ import {
 } from "../../api/workerServices.api";
 import { fetchWorkers } from "../../api/admin.api";
 
-// ✅ Component Imports
+// Component Imports
 import ServiceCard from "../../components/workerServices/ServiceCard";
 import ServiceRequestModal from "../../components/workerServices/ServiceRequestModal";
 
@@ -22,7 +22,6 @@ export default function WorkerServicesPage() {
   const [dataLoading, setDataLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
 
-  // ✅ Add modal state
   const [modalOpen, setModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -30,6 +29,9 @@ export default function WorkerServicesPage() {
   const [selectedWorker, setSelectedWorker] = useState({});
   const [paymentMethod, setPaymentMethod] = useState({});
   const [actionLoadingId, setActionLoadingId] = useState(null);
+  
+  // ✅ Toast State
+  const [toastMsg, setToastMsg] = useState("");
 
   // Role Detection
   const roleName = profile?.roles?.name || profile?.role || profile?.user_roles?.role || null;
@@ -43,6 +45,11 @@ export default function WorkerServicesPage() {
   );
 
   const paymentOptions = ["UPI", "CARD", "CASH", "NET_BANKING"];
+
+  const showToast = (msg) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(""), 3000);
+  };
 
   const loadBookings = useCallback(async () => {
     try {
@@ -83,34 +90,21 @@ export default function WorkerServicesPage() {
 
   // --- Handlers ---
 
-  async function handleCreateBooking(e, modalData = null) {
-    if (e && e.preventDefault) e.preventDefault();
-    
-    // Fallback to modalData if the modal passes state up directly
-    const category = modalData?.serviceCategory;
-    const desc = modalData?.description;
-    const prefDate = modalData?.preferredDate;
-    const prefTime = modalData?.preferredTime;
-
-    if (!desc || !prefDate || !prefTime) {
-      alert("Please fill all booking details");
-      return;
-    }
-
+  async function handleCreateBooking(data) {
     try {
       setSubmitting(true);
       await createWorkerBooking({
-        service_category: category,
-        description: desc,
-        preferred_date: prefDate,
-        preferred_time: prefTime,
+        service_category: data.serviceCategory,
+        description: data.description,
+        preferred_date: data.preferredDate,
+        preferred_time: data.preferredTime,
       });
       
-      setModalOpen(false); // Close modal on success
+      setModalOpen(false); 
       await loadBookings();
-      alert("Booking created successfully ✅");
+      showToast("Booking created successfully ✅");
     } catch (err) { 
-      alert(err.message); 
+      throw err; // Throws back to the modal so it can display the inline error
     } finally { 
       setSubmitting(false); 
     }
@@ -121,30 +115,41 @@ export default function WorkerServicesPage() {
     try {
       await updateWorkerBookingStatus(bookingId, status);
       await loadBookings();
-      alert(`Service marked as ${status} ✅`);
-    } catch (err) { alert(err.message); } finally { setActionLoadingId(null); }
+      showToast(`Service marked as ${status} ✅`);
+    } catch (err) { 
+      showToast("❌ " + err.message); 
+    } finally { 
+      setActionLoadingId(null); 
+    }
   }
 
   async function handleAdminAssignWorker(bookingId) {
     const workerId = selectedWorker[bookingId];
-    if (!workerId) { alert("Select a worker first"); return; }
+    if (!workerId) { 
+      showToast("⚠️ Select a worker first"); 
+      return; 
+    }
     setActionLoadingId(bookingId);
     try {
       await assignWorkerToBooking(bookingId, workerId);
       await loadBookings();
-      alert("Worker assigned ✅");
-    } catch (err) { alert(err.message); } finally { setActionLoadingId(null); }
+      showToast("Worker assigned ✅");
+    } catch (err) { 
+      showToast("❌ " + err.message); 
+    } finally { 
+      setActionLoadingId(null); 
+    }
   }
 
   async function handlePayment(bookingId) {
     const method = paymentMethod[bookingId] || "UPI";
     setActionLoadingId(bookingId);
     try {
-      const res = await payForWorkerService(bookingId, { payment_method: method });
-      alert(`Payment Successful! ✅ Ref: ${res.transaction_ref}`);
+      await payForWorkerService(bookingId, { payment_method: method });
+      showToast(`Payment Successful! ✅`);
       await loadBookings();
     } catch (err) {
-      alert(err.message);
+      showToast("❌ " + err.message);
     } finally {
       setActionLoadingId(null);
     }
@@ -157,10 +162,10 @@ export default function WorkerServicesPage() {
     setActionLoadingId(paymentId);
     try {
       await requestWorkerRefund(paymentId, reason);
-      alert("Refund request submitted! 🟡");
+      showToast("Refund request submitted! 🟡");
       await loadBookings();
     } catch (err) {
-      alert(err.message || "Refund request failed");
+      showToast("❌ " + (err.message || "Refund request failed"));
     } finally {
       setActionLoadingId(null);
     }
@@ -175,9 +180,8 @@ export default function WorkerServicesPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-6 space-y-6">
+    <div className="max-w-7xl mx-auto p-6 space-y-6 relative">
       
-      {/* ✅ Add Request Button & Modern Header */}
       <div className="flex justify-between items-center mb-6 border-b border-slate-200 pb-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">Worker Services</h2>
@@ -203,7 +207,6 @@ export default function WorkerServicesPage() {
         </div>
       </div>
 
-      {/* Modern Filter Section */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
         <label className="text-sm font-medium text-slate-600">Filter Status:</label>
         <select 
@@ -216,7 +219,6 @@ export default function WorkerServicesPage() {
         </select>
       </div>
 
-      {/* ✅ Replace Table With Cards */}
       <div>
         {dataLoading ? (
           <p className="text-slate-500 py-10 text-center">Loading services...</p>
@@ -230,22 +232,16 @@ export default function WorkerServicesPage() {
               <ServiceCard
                 key={b.id}
                 booking={b}
-                
-                // Passing down all role flags and data arrays
                 isAdmin={isAdmin}
                 isWorker={isWorker}
                 isResident={isResident}
                 workers={workers}
                 paymentOptions={paymentOptions}
-                
-                // Passing down all local action states
                 selectedWorker={selectedWorker}
                 setSelectedWorker={setSelectedWorker}
                 paymentMethod={paymentMethod}
                 setPaymentMethod={setPaymentMethod}
                 actionLoadingId={actionLoadingId}
-                
-                // Passing down all action handlers
                 handleAdminAssignWorker={handleAdminAssignWorker}
                 handleWorkerStatusUpdate={handleWorkerStatusUpdate}
                 handlePayment={handlePayment}
@@ -256,13 +252,20 @@ export default function WorkerServicesPage() {
         )}
       </div>
 
-      {/* ✅ Add Modal */}
       <ServiceRequestModal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onSubmit={handleCreateBooking}
         submitting={submitting}
       />
+
+      {/* ✅ Premium Toast Notification */}
+      {toastMsg && (
+        <div className="fixed bottom-6 right-6 bg-slate-900 text-white px-6 py-3 rounded-xl shadow-2xl font-medium flex items-center gap-3 transition-all z-50 animate-bounce-in">
+          {toastMsg}
+        </div>
+      )}
+
     </div>
   );
 }

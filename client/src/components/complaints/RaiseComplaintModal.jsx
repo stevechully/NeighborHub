@@ -2,22 +2,35 @@ import { useState } from "react";
 
 export default function RaiseComplaintModal({ open, onClose, onSubmit }) {
 
-  const [title, setTitle] = useState("");
+  const [category, setCategory] = useState("");
+  const [priority, setPriority] = useState("MEDIUM");
   const [desc, setDesc] = useState("");
 
   if (!open) return null;
 
   const submit = (e) => {
     e.preventDefault();
-    onSubmit({ title, description: desc });
-    setTitle("");
+
+    if (!category || !desc) {
+      alert("Please fill all fields");
+      return;
+    }
+
+    onSubmit({
+      category,
+      description: desc,
+      priority
+    });
+
+    setCategory("");
+    setPriority("MEDIUM");
     setDesc("");
   };
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
 
-      <div className="bg-white rounded-xl p-6 w-[400px]">
+      <div className="bg-white rounded-xl p-6 w-[420px]">
 
         <h2 className="text-lg font-semibold mb-4">
           Raise Complaint
@@ -25,15 +38,35 @@ export default function RaiseComplaintModal({ open, onClose, onSubmit }) {
 
         <form onSubmit={submit} className="space-y-3">
 
-          <input
-            placeholder="Title"
+          {/* Category */}
+          <select
             className="w-full border rounded-lg p-2"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+          >
+            <option value="">Select Category</option>
+            <option value="PLUMBING">Plumbing</option>
+            <option value="ELECTRICAL">Electrical</option>
+            <option value="SECURITY">Security</option>
+            <option value="CLEANING">Cleaning</option>
+            <option value="OTHER">Other</option>
+          </select>
 
+          {/* Priority */}
+          <select
+            className="w-full border rounded-lg p-2"
+            value={priority}
+            onChange={(e) => setPriority(e.target.value)}
+          >
+            <option value="LOW">Low Priority</option>
+            <option value="MEDIUM">Medium Priority</option>
+            <option value="HIGH">High Priority</option>
+            <option value="CRITICAL">Critical</option>
+          </select>
+
+          {/* Description */}
           <textarea
-            placeholder="Description"
+            placeholder="Describe the issue..."
             className="w-full border rounded-lg p-2 h-24"
             value={desc}
             onChange={(e) => setDesc(e.target.value)}

@@ -48,12 +48,31 @@ router.post('/', requireAuth, async (req, res) => {
 
 /**
  * GET /api/worker-services
- * Fetch service requests (General list)
+ * ✅ SECURED: Role-based filtering applied (Workers only see their own jobs)
  */
 router.get('/', requireAuth, async (req, res) => {
   const { status } = req.query;
 
-  let query = req.supabase.from('worker_bookings').select('*');
+  // 1. Get the user's role
+  const { data: roleRow } = await req.supabase
+    .from('user_roles')
+    .select('role')
+    .eq('user_id', req.userId)
+    .single();
+
+  // 2. Fetch bookings, including the assigned worker's name
+  let query = req.supabase
+    .from('worker_bookings')
+    .select(`
+      *,
+      workers:worker_id(full_name)
+    `);
+
+  // 3. 👷 Worker should only see their assigned jobs
+  if (roleRow?.role === 'WORKER') {
+    query = query.eq('worker_id', req.userId);
+  }
+  // (Admins bypass the filter and see everything)
 
   if (status) {
     query = query.eq('status', status);
@@ -69,15 +88,13 @@ router.get('/', requireAuth, async (req, res) => {
 });
 
 /**
- * ✅ GET /api/worker-services/my-bookings
+ * GET /api/worker-services/my-bookings
  * Resident fetches their bookings merged with payment/refund status
- * Uses manual merge for maximum stability
  */
 router.get("/my-bookings", requireAuth, async (req, res) => {
   try {
     const userId = req.userId;
 
-    // 1. Fetch bookings belonging to this resident
     const { data: bookings, error: bookingError } = await req.supabase
       .from("worker_bookings")
       .select("*, workers:worker_id(full_name)")
@@ -86,7 +103,6 @@ router.get("/my-bookings", requireAuth, async (req, res) => {
 
     if (bookingError) throw bookingError;
 
-    // 2. Fetch payments for this resident to merge
     const { data: payments, error: paymentError } = await req.supabase
       .from("worker_payments")
       .select("id, booking_id, refund_status, amount_paid")
@@ -94,7 +110,6 @@ router.get("/my-bookings", requireAuth, async (req, res) => {
 
     if (paymentError) throw paymentError;
 
-    // 3. Manual merge: Attach payment object to the correct booking
     const formatted = bookings.map((b) => {
       const payment = payments?.find((p) => p.booking_id === b.id);
       return {
@@ -139,7 +154,6 @@ router.post('/:id/pay', requireAuth, async (req, res) => {
   const transactionRef = `WS-${Date.now()}`;
   const finalAmount = booking.amount || 500; 
 
-  // Create payment record and initialize refund_status
   const { error: paymentError } = await supabaseAdmin
     .from('worker_payments')
     .insert({

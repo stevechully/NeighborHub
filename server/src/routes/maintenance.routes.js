@@ -18,7 +18,7 @@ async function isAdmin(supabase, userId) {
 
 /**
  * POST /api/maintenance/invoices/generate
- * Admin generates monthly invoices for all residents
+ * ✅ FIXED: Database-level duplicate check prevents multiple invoices for the same month
  */
 router.post('/invoices/generate', requireAuth, async (req, res) => {
   const { amount, due_date } = req.body;
@@ -31,35 +31,47 @@ router.post('/invoices/generate', requireAuth, async (req, res) => {
     return res.status(403).json({ error: 'Admin access required' });
   }
 
-  // Fetch all active residents
+  // 1. Fetch all active residents
   const { data: residents, error } = await req.supabase
     .from('profiles')
     .select('id')
     .eq('status', 'ACTIVE');
 
-  if (error) {
-    return res.status(400).json({ error: error.message });
-  }
+  if (error) return res.status(400).json({ error: error.message });
 
-  const invoices = residents.map(r => ({
-    resident_id: r.id,
-    amount,
-    due_date,
-    penalty_amount: 0,
-    status: 'PENDING'
-  }));
-
-  const { error: insertError } = await req.supabase
+  // 2. Fetch all EXISTING invoices for this due date
+  const { data: existingInvoices } = await req.supabase
     .from('maintenance_invoices')
-    .insert(invoices);
+    .select('resident_id')
+    .eq('due_date', due_date);
 
-  if (insertError) {
-    return res.status(400).json({ error: insertError.message });
+  // 3. Create a quick lookup Set of residents who already have an invoice
+  const existingResidentIds = new Set(existingInvoices?.map(i => i.resident_id) || []);
+
+  // 4. Filter out residents who already have an invoice for this date
+  const invoicesToCreate = residents
+    .filter(r => !existingResidentIds.has(r.id))
+    .map(r => ({
+      resident_id: r.id,
+      amount,
+      due_date,
+      penalty_amount: 0,
+      status: 'PENDING'
+    }));
+
+  // 5. Insert only the missing ones
+  if (invoicesToCreate.length > 0) {
+    const { error: insertError } = await req.supabase
+      .from('maintenance_invoices')
+      .insert(invoicesToCreate);
+
+    if (insertError) return res.status(400).json({ error: insertError.message });
   }
 
   res.json({
     success: true,
-    invoices_created: invoices.length
+    invoices_created: invoicesToCreate.length,
+    message: invoicesToCreate.length === 0 ? "All residents already have invoices for this date." : "Invoices generated."
   });
 });
 
@@ -77,10 +89,7 @@ router.get('/invoices', requireAuth, async (req, res) => {
     .select('*')
     .order('due_date', { ascending: false });
 
-  if (error) {
-    return res.status(400).json({ error: error.message });
-  }
-
+  if (error) return res.status(400).json({ error: error.message });
   res.json(data);
 });
 
@@ -97,9 +106,7 @@ router.get('/invoices/my', requireAuth, async (req, res) => {
     .eq('resident_id', req.userId)
     .order('due_date', { ascending: false });
 
-  if (error) {
-    return res.status(400).json({ error: error.message });
-  }
+  if (error) return res.status(400).json({ error: error.message });
 
   // Auto-calculate overdue
   const updated = data.map(inv => {
@@ -119,19 +126,10 @@ router.get('/invoices/my', requireAuth, async (req, res) => {
 router.patch('/invoices/:id/mark-paid', requireAuth, async (req, res) => {
   const invoiceId = req.params.id;
 
-  if (!(await isAdmin(req.supabase, req.userId))) {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
+  if (!(await isAdmin(req.supabase, req.userId))) return res.status(403).json({ error: 'Admin access required' });
 
-  const { data: invoice } = await req.supabase
-    .from('maintenance_invoices')
-    .select('*')
-    .eq('id', invoiceId)
-    .single();
-
-  if (!invoice) {
-    return res.status(404).json({ error: 'Invoice not found' });
-  }
+  const { data: invoice } = await req.supabase.from('maintenance_invoices').select('*').eq('id', invoiceId).single();
+  if (!invoice) return res.status(404).json({ error: 'Invoice not found' });
 
   await req.supabase.from('payments').insert({
     invoice_id: invoiceId,
@@ -143,11 +141,7 @@ router.patch('/invoices/:id/mark-paid', requireAuth, async (req, res) => {
     paid_at: new Date().toISOString()
   });
 
-  await req.supabase
-    .from('maintenance_invoices')
-    .update({ status: 'PAID' })
-    .eq('id', invoiceId);
-
+  await req.supabase.from('maintenance_invoices').update({ status: 'PAID' }).eq('id', invoiceId);
   res.json({ success: true });
 });
 
@@ -156,14 +150,10 @@ router.patch('/invoices/:id/mark-paid', requireAuth, async (req, res) => {
  * Admin deletes invoice
  */
 router.delete('/invoices/:id', requireAuth, async (req, res) => {
-  const invoiceId = req.params.id;
+  if (!(await isAdmin(req.supabase, req.userId))) return res.status(403).json({ error: 'Admin access required' });
 
-  if (!(await isAdmin(req.supabase, req.userId))) {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-
-  await req.supabase.from('payments').delete().eq('invoice_id', invoiceId);
-  await req.supabase.from('maintenance_invoices').delete().eq('id', invoiceId);
+  await req.supabase.from('payments').delete().eq('invoice_id', req.params.id);
+  await req.supabase.from('maintenance_invoices').delete().eq('id', req.params.id);
 
   res.json({ success: true });
 });

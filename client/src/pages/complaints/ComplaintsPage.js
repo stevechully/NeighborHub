@@ -31,11 +31,6 @@ export default function ComplaintsPage() {
 
   // Modal State
   const [modalOpen, setModalOpen] = useState(false);
-
-  // Form states (Synced with Modal)
-  const [category, setCategory] = useState("");
-  const [description, setDescription] = useState("");
-  const [priority, setPriority] = useState("LOW");
   const [error, setError] = useState("");
 
   const loadComplaints = useCallback(async () => {
@@ -116,25 +111,26 @@ export default function ComplaintsPage() {
     }
   }
 
-  // Handler: Resident raises new complaint
-  async function handleCreateComplaint(e, modalData = null) {
-    if (e && e.preventDefault) e.preventDefault();
-    
-    const cat = modalData?.category || category;
-    const desc = modalData?.description || description;
-    const pri = modalData?.priority || priority;
+  // ✅ Updated Handler: Resident raises new complaint
+  async function handleCreateComplaint(data) {
+    const cat = data?.category;
+    const desc = data?.description;
+    const pri = data?.priority || "LOW";
 
     if (!cat || !desc) {
       setError("Please fill all fields");
       return;
     }
-    
+
     try {
-      await createComplaint({ category: cat, description: desc, priority: pri });
-      setCategory("");
-      setDescription("");
-      setPriority("LOW");
+      await createComplaint({
+        category: cat,
+        description: desc,
+        priority: pri
+      });
+
       setModalOpen(false);
+      setError(""); // Clear error on success
       await loadComplaints();
     } catch (err) {
       setError(err.message || "Failed to create complaint");
@@ -224,7 +220,6 @@ export default function ComplaintsPage() {
       </div>
 
       {/* 3. Kanban Board Grid */}
-      
       {loading ? (
         <div className="py-20 flex flex-col items-center justify-center space-y-4">
           <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
@@ -235,7 +230,6 @@ export default function ComplaintsPage() {
           {["NEW", "ASSIGNED", "IN_PROGRESS", "RESOLVED"].map((status) => (
             <div key={status} className="bg-slate-50/50 rounded-2xl p-4 border border-slate-200/60 min-h-[600px] flex flex-col">
               
-              {/* Column Header */}
               <div className="flex items-center justify-between mb-5 px-1">
                 <h3 className="font-bold text-slate-700 text-xs tracking-widest uppercase">
                   {status.replace("_", " ")}
@@ -245,7 +239,6 @@ export default function ComplaintsPage() {
                 </span>
               </div>
 
-              {/* Card Container */}
               <div className="space-y-4 flex-1">
                 {complaints
                   .filter((c) => c.status === status)
@@ -265,7 +258,6 @@ export default function ComplaintsPage() {
                     />
                   ))}
                 
-                {/* Column Empty State */}
                 {complaints.filter((c) => c.status === status).length === 0 && (
                   <div className="h-24 flex items-center justify-center border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 text-[11px] font-medium italic bg-white/30 px-4 text-center">
                     No active {status.toLowerCase().replace("_", " ")} requests

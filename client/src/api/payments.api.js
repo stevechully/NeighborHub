@@ -1,7 +1,23 @@
 import { apiFetch } from "./client";
 
 /**
- * RESIDENT: Mock payment
+ * 🟢 UNIVERSAL: Confirm any payment (Events, Facilities, etc.)
+ * POST /api/payments/confirm
+ */
+export function confirmPayment(module, referenceId, amount, method) {
+  return apiFetch("/api/payments/confirm", {
+    method: "POST",
+    body: JSON.stringify({
+      module,
+      reference_id: referenceId,
+      amount,
+      payment_method: method
+    }),
+  });
+}
+
+/**
+ * 🟡 RESIDENT: Mock payment (Legacy Maintenance Flow)
  * POST /api/payments/mock
  */
 export function mockPayInvoice(payload) {
@@ -12,7 +28,7 @@ export function mockPayInvoice(payload) {
 }
 
 /**
- * RESIDENT: My payments
+ * 🔵 RESIDENT: Fetch user's own payments
  * GET /api/payments/my
  */
 export function fetchMyPayments() {
@@ -20,7 +36,7 @@ export function fetchMyPayments() {
 }
 
 /**
- * ADMIN: All payments
+ * 🟣 ADMIN: Fetch all community payments
  * GET /api/payments
  */
 export function fetchAllPayments() {
@@ -28,7 +44,7 @@ export function fetchAllPayments() {
 }
 
 /**
- * Printable receipt data
+ * ⚪ PRINT: Fetch receipt data
  * GET /api/payments/:id/receipt
  */
 export function fetchPaymentReceipt(paymentId) {

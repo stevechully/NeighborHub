@@ -1,7 +1,11 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './auth/AuthContext';
 import RequireAuth from './auth/RequireAuth';
-import RequireRole from './auth/RequireRole'; // ✅ Added Role Protector
+import RequireRole from './auth/RequireRole';
+
+// ✅ NEW: Import the Global Providers
+import { PaymentProvider } from './components/payments/PaymentContext';
+import { CartProvider } from './context/CartContext'; 
 
 // Layout & Styling
 import AppLayout from "./components/layout/AppLayout";
@@ -22,6 +26,7 @@ import MyParcelsPage from "./pages/gate/MyParcelsPage";
 import MarketplacePage from "./pages/marketplace/MarketplacePage";
 import MarketplaceReceiptPage from "./pages/marketplace/MarketplaceReceiptPage";
 import MarketplaceSellersAdminPage from "./pages/marketplace/MarketplaceSellersAdminPage";
+import CartPage from "./pages/marketplace/CartPage"; // ✅ Import the Cart Page
 import MyEvents from "./pages/events/MyEvents";
 import FacilityDetails from "./pages/facilities/FacilityDetails";
 import AdminFacilities from "./pages/admin/AdminFacilities";
@@ -35,76 +40,85 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <Routes>
-          {/* Public Routes - No Layout Needed */}
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <PaymentProvider>
+          {/* ✅ WRAP ROUTES IN THE CART PROVIDER */}
+          <CartProvider>
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Signup />} />
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
-          {/* 🟢 GLOBAL PROTECTED ROUTES (All authenticated users can access) */}
-          <Route path="/dashboard" element={<RequireAuth><AppLayout><Dashboard /></AppLayout></RequireAuth>} />
-          <Route path="/marketplace" element={<RequireAuth><AppLayout><MarketplacePage /></AppLayout></RequireAuth>} />
-          <Route path="/payments/:id/receipt" element={<RequireAuth><AppLayout><ReceiptPage /></AppLayout></RequireAuth>} />
-          <Route path="/marketplace/payments/:id/receipt" element={<RequireAuth><AppLayout><MarketplaceReceiptPage /></AppLayout></RequireAuth>} />
+              {/* 🟢 GLOBAL PROTECTED ROUTES */}
+              <Route path="/dashboard" element={<RequireAuth><AppLayout><Dashboard /></AppLayout></RequireAuth>} />
+              <Route path="/marketplace" element={<RequireAuth><AppLayout><MarketplacePage /></AppLayout></RequireAuth>} />
+              
+              {/* ✅ NEW: CART PAGE ROUTE */}
+              <Route path="/marketplace/cart" element={<RequireAuth><AppLayout><CartPage /></AppLayout></RequireAuth>} />
+              
+              <Route path="/payments/:id/receipt" element={<RequireAuth><AppLayout><ReceiptPage /></AppLayout></RequireAuth>} />
+              <Route path="/marketplace/payments/:id/receipt" element={<RequireAuth><AppLayout><MarketplaceReceiptPage /></AppLayout></RequireAuth>} />
 
-          {/* 🔵 MULTI-ROLE ROUTES (Residents, Workers, Admins) */}
-          <Route path="/complaints" element={
-            <RequireAuth><RequireRole allowedRoles={["RESIDENT", "WORKER", "ADMIN"]}><AppLayout><ComplaintsPage /></AppLayout></RequireRole></RequireAuth>
-          } />
-          <Route path="/worker-services" element={
-            <RequireAuth><RequireRole allowedRoles={["RESIDENT", "WORKER", "ADMIN"]}><AppLayout><WorkerServicesPage /></AppLayout></RequireRole></RequireAuth>
-          } />
+              {/* 🔵 MULTI-ROLE ROUTES */}
+              <Route path="/complaints" element={
+                <RequireAuth><RequireRole allowedRoles={["RESIDENT", "WORKER", "ADMIN"]}><AppLayout><ComplaintsPage /></AppLayout></RequireRole></RequireAuth>
+              } />
+              <Route path="/worker-services" element={
+                <RequireAuth><RequireRole allowedRoles={["RESIDENT", "WORKER", "ADMIN"]}><AppLayout><WorkerServicesPage /></AppLayout></RequireRole></RequireAuth>
+              } />
 
-          {/* 🟠 RESIDENT & ADMIN ROUTES */}
-          <Route path="/notices" element={
-            <RequireAuth><RequireRole allowedRoles={["RESIDENT", "ADMIN"]}><AppLayout><NoticesPage /></AppLayout></RequireRole></RequireAuth>
-          } />
-          <Route path="/events" element={
-            <RequireAuth><RequireRole allowedRoles={["RESIDENT", "ADMIN"]}><AppLayout><EventsPage /></AppLayout></RequireRole></RequireAuth>
-          } />
-          <Route path="/facilities" element={
-            <RequireAuth><RequireRole allowedRoles={["RESIDENT", "ADMIN"]}><AppLayout><FacilitiesPage /></AppLayout></RequireRole></RequireAuth>
-          } />
-          <Route path="/facilities/:id" element={
-            <RequireAuth><RequireRole allowedRoles={["RESIDENT", "ADMIN"]}><AppLayout><FacilityDetails /></AppLayout></RequireRole></RequireAuth>
-          } />
-          <Route path="/maintenance" element={
-            <RequireAuth><RequireRole allowedRoles={["RESIDENT", "ADMIN"]}><AppLayout><MaintenancePage /></AppLayout></RequireRole></RequireAuth>
-          } />
+              {/* 🟠 RESIDENT & ADMIN ROUTES */}
+              <Route path="/notices" element={
+                <RequireAuth><RequireRole allowedRoles={["RESIDENT", "ADMIN"]}><AppLayout><NoticesPage /></AppLayout></RequireRole></RequireAuth>
+              } />
+              <Route path="/events" element={
+                <RequireAuth><RequireRole allowedRoles={["RESIDENT", "ADMIN"]}><AppLayout><EventsPage /></AppLayout></RequireRole></RequireAuth>
+              } />
+              <Route path="/facilities" element={
+                <RequireAuth><RequireRole allowedRoles={["RESIDENT", "ADMIN"]}><AppLayout><FacilitiesPage /></AppLayout></RequireRole></RequireAuth>
+              } />
+              <Route path="/facilities/:id" element={
+                <RequireAuth><RequireRole allowedRoles={["RESIDENT", "ADMIN"]}><AppLayout><FacilityDetails /></AppLayout></RequireRole></RequireAuth>
+              } />
+              <Route path="/maintenance" element={
+                <RequireAuth><RequireRole allowedRoles={["RESIDENT", "ADMIN"]}><AppLayout><MaintenancePage /></AppLayout></RequireRole></RequireAuth>
+              } />
 
-          {/* 🟣 RESIDENT ONLY ROUTES */}
-          <Route path="/my-events" element={
-            <RequireAuth><RequireRole allowedRoles={["RESIDENT"]}><AppLayout><MyEvents /></AppLayout></RequireRole></RequireAuth>
-          } />
-          <Route path="/my-parcels" element={
-            <RequireAuth><RequireRole allowedRoles={["RESIDENT"]}><AppLayout><MyParcelsPage /></AppLayout></RequireRole></RequireAuth>
-          } />
-          <Route path="/facilities/my-bookings" element={
-            <RequireAuth><RequireRole allowedRoles={["RESIDENT"]}><AppLayout><FacilityBookingsPage /></AppLayout></RequireRole></RequireAuth>
-          } />
+              {/* 🟣 RESIDENT ONLY ROUTES */}
+              <Route path="/my-events" element={
+                <RequireAuth><RequireRole allowedRoles={["RESIDENT"]}><AppLayout><MyEvents /></AppLayout></RequireRole></RequireAuth>
+              } />
+              <Route path="/my-parcels" element={
+                <RequireAuth><RequireRole allowedRoles={["RESIDENT"]}><AppLayout><MyParcelsPage /></AppLayout></RequireRole></RequireAuth>
+              } />
+              <Route path="/facilities/my-bookings" element={
+                <RequireAuth><RequireRole allowedRoles={["RESIDENT"]}><AppLayout><FacilityBookingsPage /></AppLayout></RequireRole></RequireAuth>
+              } />
 
-          {/* 🛡️ SECURITY & ADMIN ROUTES */}
-          <Route path="/gate" element={
-            <RequireAuth><RequireRole allowedRoles={["SECURITY", "ADMIN"]}><AppLayout><GateManagementPage /></AppLayout></RequireRole></RequireAuth>
-          } />
+              {/* 🛡️ SECURITY & ADMIN ROUTES */}
+              <Route path="/gate" element={
+                <RequireAuth><RequireRole allowedRoles={["SECURITY", "ADMIN"]}><AppLayout><GateManagementPage /></AppLayout></RequireRole></RequireAuth>
+              } />
 
-          {/* 🔴 ADMIN ONLY ROUTES */}
-          <Route path="/facilities/bookings" element={
-            <RequireAuth><RequireRole allowedRoles={["ADMIN"]}><AppLayout><FacilityBookingsPage /></AppLayout></RequireRole></RequireAuth>
-          } />
-          <Route path="/admin/facilities" element={
-            <RequireAuth><RequireRole allowedRoles={["ADMIN"]}><AppLayout><AdminFacilities /></AppLayout></RequireRole></RequireAuth>
-          } />
-          <Route path="/admin/refunds" element={
-            <RequireAuth><RequireRole allowedRoles={["ADMIN"]}><AppLayout><AdminRefunds /></AppLayout></RequireRole></RequireAuth>
-          } />
-          <Route path="/marketplace/sellers" element={
-            <RequireAuth><RequireRole allowedRoles={["ADMIN"]}><AppLayout><MarketplaceSellersAdminPage /></AppLayout></RequireRole></RequireAuth>
-          } />
+              {/* 🔴 ADMIN ONLY ROUTES */}
+              <Route path="/facilities/bookings" element={
+                <RequireAuth><RequireRole allowedRoles={["ADMIN"]}><AppLayout><FacilityBookingsPage /></AppLayout></RequireRole></RequireAuth>
+              } />
+              <Route path="/admin/facilities" element={
+                <RequireAuth><RequireRole allowedRoles={["ADMIN"]}><AppLayout><AdminFacilities /></AppLayout></RequireRole></RequireAuth>
+              } />
+              <Route path="/admin/refunds" element={
+                <RequireAuth><RequireRole allowedRoles={["ADMIN"]}><AppLayout><AdminRefunds /></AppLayout></RequireRole></RequireAuth>
+              } />
+              <Route path="/marketplace/sellers" element={
+                <RequireAuth><RequireRole allowedRoles={["ADMIN"]}><AppLayout><MarketplaceSellersAdminPage /></AppLayout></RequireRole></RequireAuth>
+              } />
 
-          {/* Catch-all */}
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
+              {/* Catch-all */}
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </Routes>
+          </CartProvider>
+        </PaymentProvider>
       </AuthProvider>
     </BrowserRouter>
   );
