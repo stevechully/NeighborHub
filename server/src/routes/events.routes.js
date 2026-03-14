@@ -82,7 +82,6 @@ router.get('/', requireAuth, async (_req, res) => {
 /**
  * GET /api/events/my
  * Fetch events current user registered for (SAFE VERSION)
- * ✅ Merges registrations and payments manually to prevent nesting issues
  */
 router.get('/my', requireAuth, async (req, res) => {
   try {
@@ -105,7 +104,8 @@ router.get('/my', requireAuth, async (req, res) => {
           fee
         )
       `)
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .neq('status', 'CANCELLED'); // ✅ FIX 2: Exclude cancelled registrations
 
     if (regError) throw regError;
 
@@ -168,7 +168,8 @@ router.patch("/my/:registrationId/cancel", requireAuth, async (req, res) => {
     const { error: updateError } = await req.supabase
       .from("event_registrations")
       .update({ status: "CANCELLED" })
-      .eq("id", registrationId);
+      .eq("id", registrationId)
+      .eq("user_id", userId); // ⭐ BONUS FIX: Added extra security check
 
     if (updateError) throw updateError;
 
@@ -200,6 +201,7 @@ router.post('/:id/register', requireAuth, async (req, res) => {
     .select('id')
     .eq('event_id', eventId)
     .eq('user_id', userId)
+    .neq('status', 'CANCELLED') // ✅ FIX 1: Only check active registrations
     .single();
 
   if (existing) {
@@ -249,6 +251,7 @@ router.post('/:id/pay', requireAuth, async (req, res) => {
     .select('id')
     .eq('event_id', eventId)
     .eq('user_id', userId)
+    .neq('status', 'CANCELLED') // Keeps this aligned just in case
     .single();
 
   await req.supabase.from('event_payments').insert({

@@ -10,7 +10,6 @@ const MyEvents = () => {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // ✅ NEW: State for our modern Toast Notification
   const [toastMsg, setToastMsg] = useState("");
 
   const BACKEND_URL = "http://localhost:4000/api";
@@ -37,7 +36,6 @@ const MyEvents = () => {
     }
   };
 
-  // Helper to show the toast and auto-hide it after 3 seconds
   const showToast = (message) => {
     setToastMsg(message);
     setTimeout(() => setToastMsg(""), 3000);
@@ -56,11 +54,12 @@ const MyEvents = () => {
         { headers: { Authorization: `Bearer ${token}` } }
       );
 
-      // ✅ OPTIMISTIC UI: Remove the event from state instantly
+      // Optimistic UI update
       setEvents((prev) => prev.filter((e) => e.registration_id !== registrationId));
-
-      // ✅ BETTER UX: Show a toast instead of an alert
       showToast("Registration cancelled ✅");
+
+      // ✅ FIX 3: Re-fetch to stay perfectly in sync with the backend
+      await fetchMyEvents();
       
     } catch (err) {
       alert(err.response?.data?.error || "Cancellation failed");
@@ -76,7 +75,6 @@ const MyEvents = () => {
     try {
       await requestEventRefund(paymentId, reason);
       
-      // ✅ OPTIMISTIC UI: Update the specific event's refund status instantly
       setEvents((prev) => 
         prev.map((e) => 
           e.event_payments?.id === paymentId 
@@ -112,7 +110,7 @@ const MyEvents = () => {
       {/* Event Ticket List */}
       {events.length === 0 ? (
         <p className="text-slate-500 py-10 text-center bg-slate-50 rounded-xl border border-dashed border-slate-300">
-          No registered events yet.
+          No active registered events.
         </p>
       ) : (
         <div className="space-y-4">
@@ -127,7 +125,7 @@ const MyEvents = () => {
         </div>
       )}
 
-      {/* ✅ NEW: Modern Toast Notification Component */}
+      {/* Toast Notification */}
       {toastMsg && (
         <div className="fixed bottom-6 right-6 bg-slate-900 text-white px-6 py-3 rounded-xl shadow-2xl font-medium flex items-center gap-3 transition-all z-50 animate-bounce-in">
           {toastMsg}
