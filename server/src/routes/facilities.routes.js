@@ -6,7 +6,6 @@ const router = express.Router();
 
 /**
  * POST /api/facilities
- * Admin creates a facility
  */
 router.post('/', requireAuth, async (req, res) => {
   const { name, description, capacity, is_paid, fee, open_time, close_time, approval_required, slot_duration_minutes } = req.body;
@@ -72,7 +71,7 @@ router.get('/', requireAuth, async (req, res) => {
 
 /**
  * GET /api/facilities/my-bookings
- * ✅ FIXED: Added `fee` to the select query so the frontend modal knows the price!
+ * ✅ FIXED: Now strictly orders by created_at DESC (Newest first)
  */
 router.get("/my-bookings", requireAuth, async (req, res) => {
   try {
@@ -84,7 +83,7 @@ router.get("/my-bookings", requireAuth, async (req, res) => {
         facility_payments(id, refund_status)
       `)
       .eq("resident_id", req.userId)
-      .order("start_time", { ascending: false });
+      .order("created_at", { ascending: false }); // <-- THIS IS THE FIX
 
     if (error) return res.status(400).json({ error: error.message });
 
@@ -180,13 +179,13 @@ router.post('/:id/book', requireAuth, async (req, res) => {
 
 /**
  * GET /api/facilities/bookings
- * ✅ FIXED: Added `fee` to select query
+ * ✅ FIXED: Now strictly orders by created_at DESC
  */
 router.get('/bookings', requireAuth, async (req, res) => {
   const { data, error } = await req.supabase
     .from('facility_bookings')
     .select(`*, facilities ( name, fee, is_paid ), facility_payments(id, refund_status)`)
-    .order('start_time', { ascending: false });
+    .order('created_at', { ascending: false }); // <-- THIS IS THE FIX
 
   if (error) return res.status(400).json({ error: error.message });
 
@@ -236,5 +235,4 @@ router.patch('/bookings/:id', requireAuth, async (req, res) => {
   res.json(data);
 });
 
-// REMOVED legacy /bookings/:id/pay route because we use the global /payments/confirm now!
 export default router;

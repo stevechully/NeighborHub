@@ -3,12 +3,12 @@ import { useAuth } from "../../auth/AuthContext";
 import { useLocation } from "react-router-dom"; 
 import { fetchFacilityBookings, fetchMyFacilityBookings, updateFacilityBookingStatus, cancelFacilityBooking, requestFacilityRefund } from "../../api/facilities.api";
 import FacilityBookingCard from "../../components/facilities/FacilityBookingCard";
-import { usePayment } from "../../components/payments/PaymentContext"; // ✅ Global Payment Hook
+import { usePayment } from "../../components/payments/PaymentContext"; 
 
 export default function FacilityBookingsPage() {
   const { profile, loading: authLoading } = useAuth();
   const location = useLocation();
-  const { openPayment } = usePayment(); // ✅ Initialize hook
+  const { openPayment } = usePayment();
 
   const roleName = profile?.roles?.name || profile?.role || profile?.user_roles?.role || null;
   const isAdmin = roleName === "ADMIN";
@@ -16,6 +16,14 @@ export default function FacilityBookingsPage() {
 
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // ✅ Premium Toast State
+  const [toastMsg, setToastMsg] = useState("");
+
+  const showToast = (msg) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(""), 3000);
+  };
 
   const loadBookings = useCallback(async () => {
     try {
@@ -39,16 +47,17 @@ export default function FacilityBookingsPage() {
     try {
       if (status === "CANCELLED") {
         await cancelFacilityBooking(id);
+        showToast("Booking cancelled successfully.");
       } else {
         await updateFacilityBookingStatus(id, status);
+        showToast(`Booking marked as ${status} ✅`);
       }
       loadBookings();
     } catch (err) {
-      alert(err.message);
+      showToast("❌ " + err.message);
     }
   }
 
-  // ✅ Trigger Global Modal for pending bookings
   function handlePayment(booking) {
     openPayment({
       module: "FACILITY",
@@ -56,7 +65,8 @@ export default function FacilityBookingsPage() {
       amount: booking.facilities.fee, 
       itemName: booking.facilities.name,
       onSuccess: () => {
-        loadBookings(); // Refresh list to show CONFIRMED status
+        showToast("Payment successful! ✅");
+        loadBookings(); 
       }
     });
   }
@@ -67,10 +77,10 @@ export default function FacilityBookingsPage() {
 
     try {
       await requestFacilityRefund(paymentId, reason);
-      alert("Refund request submitted! 🟡");
+      showToast("Refund request submitted! 🟡");
       await loadBookings();
     } catch (err) {
-      alert(err.message || "Refund request failed");
+      showToast("❌ " + (err.message || "Refund request failed"));
     }
   }
 
@@ -83,7 +93,7 @@ export default function FacilityBookingsPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-6 space-y-6">
+    <div className="max-w-7xl mx-auto p-6 space-y-6 relative">
       <div className="flex justify-between items-center mb-6 border-b border-slate-200 pb-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">
@@ -114,14 +124,21 @@ export default function FacilityBookingsPage() {
                 isAdmin={isAdmin}
                 isMyBookingsPage={isMyBookingsPage}
                 onCancel={() => handleUpdateStatus(b.id, "CANCELLED")}
-                onRefund={() => b.facility_payments ? handleRefundRequest(b.facility_payments.id) : alert("No payment found")}
-                onPay={() => handlePayment(b)} // ✅ Passes the whole booking object now
+                onRefund={() => b.facility_payments ? handleRefundRequest(b.facility_payments.id) : showToast("❌ No payment found")}
+                onPay={() => handlePayment(b)}
                 onApprove={() => handleUpdateStatus(b.id, "APPROVED")}
               />
             ))}
           </div>
         )}
       </div>
+
+      {/* ✅ Premium Toast Notification */}
+      {toastMsg && (
+        <div className="fixed bottom-6 right-6 bg-slate-900 text-white px-6 py-3 rounded-xl shadow-2xl font-medium flex items-center gap-3 transition-all z-50 animate-bounce-in">
+          {toastMsg}
+        </div>
+      )}
     </div>
   );
 }

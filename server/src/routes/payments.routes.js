@@ -88,14 +88,30 @@ router.post('/confirm', requireAuth, async (req, res) => {
         .eq('id', reference_id);
 
     } else if (module === 'FACILITY') {
-      // 1. Update Booking Status
+      // ✅ FIX: 1. Insert the official receipt into facility_payments
+      const { data, error } = await req.supabase
+        .from('facility_payments')
+        .insert({
+          booking_id: reference_id,
+          resident_id: req.userId,
+          amount_paid: amount,
+          payment_method,
+          transaction_ref: transactionRef,
+          refund_status: 'NONE'
+        })
+        .select().single();
+
+      if (error) throw error;
+      paymentRecord = data;
+
+      // 2. Update Booking Status
       await req.supabase
         .from('facility_bookings')
         .update({ payment_status: 'PAID', status: 'CONFIRMED' }) 
         .eq('id', reference_id);
 
     } else if (module === 'MARKETPLACE_CART') {
-      // ✅ NEW: Handle Marketplace Cart (reference_id is the cart array)
+      // Handle Marketplace Cart (reference_id is the cart array)
       const cart = reference_id; 
       
       for (const item of cart) {

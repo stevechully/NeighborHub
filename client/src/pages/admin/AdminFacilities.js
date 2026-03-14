@@ -16,7 +16,7 @@ export default function AdminFacilities() {
   const initialForm = {
     name: "",
     description: "",
-    capacity: "",
+    capacity: "", // Will be filled via the new input
     open_time: "09:00",
     close_time: "18:00",
     slot_duration_minutes: 60,
@@ -44,7 +44,10 @@ export default function AdminFacilities() {
 
   const handleEdit = (facility) => {
     setEditingId(facility.id);
-    setForm({ ...facility });
+    setForm({ 
+      ...facility,
+      fee: facility.fee || 0 
+    });
     setShowModal(true);
   };
 
@@ -56,24 +59,30 @@ export default function AdminFacilities() {
 
   const handleSave = async () => {
     try {
+      const payload = {
+        ...form,
+        fee: form.is_paid ? Number(form.fee) : 0, 
+        // ✅ FIXED: Fall back to 0 instead of null if left blank
+        capacity: form.capacity ? Number(form.capacity) : 0, 
+        slot_duration_minutes: Number(form.slot_duration_minutes)
+      };
+
       if (editingId) {
-        await updateFacility(editingId, form);
+        await updateFacility(editingId, payload);
         alert("Facility updated! ✅");
       } else {
-        await createFacility(form);
+        await createFacility(payload);
         alert("Facility created! ✅");
       }
       setShowModal(false);
       loadFacilities();
     } catch (err) {
-      alert(err.message);
+      alert(err.message || "Failed to save facility");
     }
   };
 
   const handleToggleActive = async (facility) => {
     try {
-      // If it's active, we deactivate it. 
-      // If it's inactive, we use updateFacility to set is_active: true
       if (facility.is_active) {
         await deactivateFacility(facility.id);
       } else {
@@ -149,6 +158,12 @@ export default function AdminFacilities() {
             <div style={styles.formGroup}>
               <label>Description</label>
               <textarea style={styles.input} value={form.description} onChange={(e) => setForm({...form, description: e.target.value})} />
+            </div>
+
+            {/* ✅ ADDED: The missing Capacity input field! */}
+            <div style={styles.formGroup}>
+              <label>Capacity (Max People)</label>
+              <input type="number" style={styles.input} value={form.capacity} onChange={(e) => setForm({...form, capacity: e.target.value})} />
             </div>
 
             <div style={{ display: "flex", gap: "10px" }}>
