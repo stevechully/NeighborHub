@@ -111,7 +111,7 @@ export default function ComplaintsPage() {
     }
   }
 
-  // ✅ Updated Handler: Resident raises new complaint
+  // Handler: Resident raises new complaint
   async function handleCreateComplaint(data) {
     const cat = data?.category;
     const desc = data?.description;
@@ -160,12 +160,15 @@ export default function ComplaintsPage() {
             Refresh Board
           </button>
           
-          <button
-            onClick={() => setModalOpen(true)}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg font-bold transition-all shadow-md active:scale-95"
-          >
-            + Raise Complaint
-          </button>
+          {/* ✅ FIXED: Button hidden for Admins */}
+          {!isAdmin && (
+            <button
+              onClick={() => setModalOpen(true)}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-lg font-bold transition-all shadow-md active:scale-95"
+            >
+              + Raise Complaint
+            </button>
+          )}
         </div>
       </div>
 

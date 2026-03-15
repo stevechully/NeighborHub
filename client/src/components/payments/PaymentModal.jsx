@@ -122,7 +122,7 @@ export default function PaymentModal({
               disabled={loading}
               className="w-full bg-slate-900 hover:bg-slate-800 text-white py-3.5 rounded-xl font-bold shadow-md transition-colors"
             >
-              I Have Paid
+              Confrim Payment
             </button>
 
             <button
