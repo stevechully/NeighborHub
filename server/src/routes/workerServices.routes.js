@@ -5,6 +5,16 @@ import { supabaseAdmin } from '../config/supabase.js';
 const router = express.Router();
 
 /**
+ * ✅ Reusable Select Query for all GET routes
+ * Ensures consistency across Resident, Worker, and Admin views
+ */
+const bookingSelect = `
+  *,
+  workers:worker_id(full_name),
+  resident:resident_id(id, full_name)
+`;
+
+/**
  * Helper: check if user is ADMIN
  */
 async function isAdmin(supabase, userId) {
@@ -48,31 +58,25 @@ router.post('/', requireAuth, async (req, res) => {
 
 /**
  * GET /api/worker-services
- * ✅ SECURED: Role-based filtering applied (Workers only see their own jobs)
+ * SECURED: Role-based filtering applied (Workers only see their own jobs)
  */
 router.get('/', requireAuth, async (req, res) => {
   const { status } = req.query;
 
-  // 1. Get the user's role
   const { data: roleRow } = await req.supabase
     .from('user_roles')
     .select('role')
     .eq('user_id', req.userId)
     .single();
 
-  // 2. Fetch bookings, including the assigned worker's name
+  // ✅ Applied the reusable select query
   let query = req.supabase
     .from('worker_bookings')
-    .select(`
-      *,
-      workers:worker_id(full_name)
-    `);
+    .select(bookingSelect);
 
-  // 3. 👷 Worker should only see their assigned jobs
   if (roleRow?.role === 'WORKER') {
     query = query.eq('worker_id', req.userId);
   }
-  // (Admins bypass the filter and see everything)
 
   if (status) {
     query = query.eq('status', status);
@@ -95,9 +99,10 @@ router.get("/my-bookings", requireAuth, async (req, res) => {
   try {
     const userId = req.userId;
 
+    // ✅ Applied the reusable select query
     const { data: bookings, error: bookingError } = await req.supabase
       .from("worker_bookings")
-      .select("*, workers:worker_id(full_name)")
+      .select(bookingSelect)
       .eq("resident_id", userId)
       .order("created_at", { ascending: false });
 
@@ -189,7 +194,7 @@ router.post('/:id/pay', requireAuth, async (req, res) => {
 
 /**
  * GET /api/worker-services/admin/all
- * Admin fetches ALL worker bookings
+ * ✅ FIXED: Admin fetches ALL worker bookings WITH joined profiles
  */
 router.get('/admin/all', requireAuth, async (req, res) => {
   const { status } = req.query;
@@ -198,7 +203,10 @@ router.get('/admin/all', requireAuth, async (req, res) => {
     return res.status(403).json({ error: 'Admin access required' });
   }
 
-  let query = supabaseAdmin.from('worker_bookings').select('*');
+  // ✅ Replaced .select('*') with the unified bookingSelect string
+  let query = supabaseAdmin
+    .from('worker_bookings')
+    .select(bookingSelect);
 
   if (status) {
     query = query.eq('status', status);

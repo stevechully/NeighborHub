@@ -1,20 +1,55 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "../../auth/AuthContext";
 import { createNotice, deleteNotice, fetchNotices } from "../../api/notices.api";
-
-// ✅ Added Import
 import NoticeCard from "../../components/notices/NoticeCard";
+
+// ✅ The New Modal Component (Placed right here for convenience)
+function NoticeModal({ notice, onClose }) {
+  if (!notice) return null;
+  const textContent = notice.content || notice.message;
+
+  return (
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
+        
+        <div className="flex justify-between items-start mb-2">
+          <h2 className="text-2xl font-bold text-slate-800 pr-8">
+            {notice.title}
+          </h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-3 mb-6">
+          <span className="text-[10px] font-bold px-2 py-1 rounded bg-slate-100 text-slate-600 tracking-wider">
+            {notice.priority}
+          </span>
+          <span className="text-xs text-slate-500 font-medium">
+            {new Date(notice.created_at).toLocaleString([], { dateStyle: 'full', timeStyle: 'short' })}
+          </span>
+        </div>
+
+        {/* whitespace-pre-line is the magic trick that preserves their paragraphs! */}
+        <div className="prose prose-sm max-w-none text-slate-700 whitespace-pre-line leading-relaxed max-h-[60vh] overflow-y-auto pr-2">
+          {textContent}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function NoticesPage() {
   const { profile, loading: authLoading } = useAuth();
 
-  const roleName =
-    profile?.roles?.name || profile?.role || profile?.user_roles?.role || null;
-
+  const roleName = profile?.roles?.name || profile?.role || profile?.user_roles?.role || null;
   const isAdmin = roleName === "ADMIN";
 
   const [notices, setNotices] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // ✅ New State to track which notice is currently open in the modal
+  const [selectedNotice, setSelectedNotice] = useState(null);
 
   // create notice form
   const [title, setTitle] = useState("");
@@ -39,7 +74,6 @@ export default function NoticesPage() {
     if (!authLoading && profile) {
       loadNotices();
     }
-    // eslint-disable-next-line
   }, [authLoading, profile]);
 
   async function handleCreateNotice(e) {
@@ -78,7 +112,6 @@ export default function NoticesPage() {
     try {
       await deleteNotice(id);
       await loadNotices();
-      alert("Notice deleted ✅");
     } catch (err) {
       alert(err.message);
     }
@@ -95,7 +128,6 @@ export default function NoticesPage() {
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
       
-      {/* ✅ REPLACED: Modern Page Header */}
       <div className="flex justify-between items-center mb-6 border-b border-slate-200 pb-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">
@@ -190,7 +222,7 @@ export default function NoticesPage() {
         </div>
       )}
 
-      {/* ✅ REPLACED: NOTICE LIST */}
+      {/* NOTICE LIST */}
       <div>
         {loading ? (
           <p className="text-slate-500 py-10 text-center">Loading notices...</p>
@@ -199,18 +231,25 @@ export default function NoticesPage() {
             No active notices.
           </p>
         ) : (
-          <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {notices.map((notice) => (
               <NoticeCard
                 key={notice.id}
                 notice={notice}
                 isAdmin={isAdmin}
-                onDelete={() => handleDeleteNotice(notice.id)} // Passed down in case the card handles deletion!
+                onDelete={() => handleDeleteNotice(notice.id)}
+                onOpen={setSelectedNotice} // ✅ Passes the notice to the modal state
               />
             ))}
           </div>
         )}
       </div>
+
+      {/* ✅ The Modal Renderer */}
+      <NoticeModal 
+        notice={selectedNotice} 
+        onClose={() => setSelectedNotice(null)} 
+      />
       
     </div>
   );
