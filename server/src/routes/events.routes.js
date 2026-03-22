@@ -121,10 +121,14 @@ router.post("/payments/:id/refund/approve", requireAuth, async (req, res) => {
   const paymentId = req.params.id;
   const { error } = await req.supabase.from("event_payments").update({ refund_status: "REFUNDED" }).eq("id", paymentId);
   
-  // Optionally update registration payment status
-  const { data: payRecord } = await req.supabase.from("event_payments").select("registration_id").eq("id", paymentId).single();
-  if (payRecord?.registration_id) {
-    await req.supabase.from("event_registrations").update({ payment_status: "REFUNDED" }).eq("id", payRecord.registration_id);
+  // ✅ FIX: Update registration payment status using event_id and user_id instead of registration_id
+  const { data: payRecord } = await req.supabase.from("event_payments").select("event_id, user_id").eq("id", paymentId).single();
+  
+  if (payRecord) {
+    await req.supabase.from("event_registrations")
+      .update({ payment_status: "REFUNDED" })
+      .eq("event_id", payRecord.event_id)
+      .eq("user_id", payRecord.user_id);
   }
 
   if (error) return res.status(400).json({ error: error.message });

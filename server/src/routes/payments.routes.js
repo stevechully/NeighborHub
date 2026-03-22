@@ -31,21 +31,12 @@ router.post('/confirm', requireAuth, async (req, res) => {
 
   try {
     if (module === 'EVENT') {
-      // 1. Fetch the registration ID
-      const { data: registration } = await req.supabase
-        .from('event_registrations')
-        .select('id')
-        .eq('event_id', reference_id)
-        .eq('user_id', req.userId)
-        .single();
-
-      // 2. Insert into event_payments
+      // ✅ FIX: 1. Insert into event_payments directly using event_id
       const { data, error } = await req.supabase
         .from('event_payments')
         .insert({
           event_id: reference_id,
           user_id: req.userId,
-          registration_id: registration?.id,
           amount_paid: amount,
           payment_method,
           transaction_ref: transactionRef,
@@ -56,7 +47,7 @@ router.post('/confirm', requireAuth, async (req, res) => {
       if (error) throw error;
       paymentRecord = data;
 
-      // 3. Update Status
+      // 2. Update Status
       await req.supabase
         .from('event_registrations')
         .update({ payment_status: 'PAID' })
@@ -88,7 +79,7 @@ router.post('/confirm', requireAuth, async (req, res) => {
         .eq('id', reference_id);
 
     } else if (module === 'FACILITY') {
-      // ✅ FIX: 1. Insert the official receipt into facility_payments
+      // 1. Insert the official receipt into facility_payments
       const { data, error } = await req.supabase
         .from('facility_payments')
         .insert({
